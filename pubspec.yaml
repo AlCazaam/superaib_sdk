@@ -1,0 +1,24 @@
+name: superaib_sdk
+description: The official Flutter SDK for SuperAIB Cloud. Powerful Auth, Database, and Realtime services.
+version: 0.0.1
+
+homepage: https://github.com/AlCazaam/superaib_sdk
+repository: https://github.com/AlCazaam/superaib_sdk
+issue_tracker: https://github.com/AlCazaam/superaib_sdk/issues
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  dio: ^5.9.1
+  web_socket_channel: ^3.0.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
