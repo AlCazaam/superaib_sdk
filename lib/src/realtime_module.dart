@@ -41,51 +41,36 @@ class SuperAIBRealtime {
       _reconnectImmediately();
     }
   }
-
-
-// 🚀 2. CONNECTION MANAGEMENT (Full Updated Function)
-  void connect() {
+void connect() {
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
     
     _status = RealtimeStatus.connecting;
     _statusController.add(_status);
 
-    // Build WebSocket URL: Bedel http -> ws
+    // Bedel http -> ws
     final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
     final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
     
-    // 🚀 BEDDELKA MUHIIMKA AH: Xogta u dir URL-ka dhexdiisa si Middleware-ku u helo
-    // URL Format: ws://server/ws/PROJECT_REF?api_key=YOUR_KEY
-    
-                  // lib/src/realtime_module.dart dhexdiisa
-final wsUrl = "$cleanUrl/ws?project_id=$_projectRef&api_key=$_apiKey" + 
-              (_userID != null ? "&user_id=$_userID" : "");
+    // 🚀 URL-KA SAXDA AH:
+    // Waxaad leedahay baseUrl = http://localhost:8080/api/v1
+    // Markaa URL-ku wuxuu noqonayaa: ws://localhost:8080/api/v1/ws/PROJECT_ID?api_key=...
+    final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                  (_userID != null ? "&user_id=$_userID" : "");
+
+    print("🌐 Connecting to SuperAIB: $wsUrl");
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
-
+      
       _channel!.stream.listen(
         (message) => _onMessageReceived(message),
-        onDone: () {
-          print("🔌 Realtime: Connection closed by server.");
-          _handleDisconnect();
-        },
-        onError: (err) {
-          print("❌ Realtime Error: $err");
-          _handleDisconnect();
-        },
+        onDone: () => _handleDisconnect(),
+        onError: (err) => _handleDisconnect(),
       );
-
+      
       _status = RealtimeStatus.connected;
       _statusController.add(_status);
-      _retryAttempts = 0;
-      
-      // Dib u subscribe-gareey qolalkii hore u furnaa
-      _reSubscribeToAll();
-      
     } catch (e) {
-      print("🚀 Exception while connecting to Realtime: $e");
       _handleDisconnect();
     }
   }
