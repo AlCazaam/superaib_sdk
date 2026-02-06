@@ -3,6 +3,7 @@ library superaib_sdk;
 import 'package:dio/dio.dart';
 import 'package:superaib_sdk/src/auth_module.dart';
 import 'package:superaib_sdk/src/database_module.dart';
+import 'package:superaib_sdk/src/realtime_module.dart';
 
 
 /// SuperAIB Cloud SDK for Flutter
@@ -10,44 +11,28 @@ import 'package:superaib_sdk/src/database_module.dart';
 class SuperAIB {
   static SuperAIB? _instance;
 
-  final String projectRef; // Reference ID-ga Dashboard-ka laga soo qaatay
+  final String projectRef;
   final String apiKey;
   final String baseUrl;
   late final Dio _client;
 
-  // Modules: Adeegyada ay SuperAIB bixiso
   late final SuperAIBAuth auth;
-   late final SuperAIBDatabase db;
+  late final SuperAIBDatabase db;
+  late final SuperAIBRealtime realtime;
 
-
-  // Private Constructor
   SuperAIB._internal({
     required this.projectRef,
     required this.apiKey,
     required this.baseUrl,
-
   }) {
-    // 1. Setup HTTP Client (Dio)
-    _client = Dio(BaseOptions(
-      baseUrl: baseUrl,
-      headers: {
-        'x-api-key': apiKey,
-        'Content-Type': 'application/json',
-      },
-    ));
+    _client = Dio(BaseOptions(baseUrl: baseUrl, headers: {'x-api-key': apiKey}));
 
-    // 2. Initialize Modules
     auth = SuperAIBAuth(_client, projectRef);
-     // Initialize Database Module
     db = SuperAIBDatabase(_client, projectRef);
-
-
+    // Realtime wuxuu ku bilaabanayaa UserID-la'aan (Null)
+    realtime = SuperAIBRealtime(baseUrl, projectRef, apiKey);
   }
 
-  /// Initialize SuperAIB SDK
-  /// [projectRef] - Reference ID-ga mashruucaaga
-  /// [apiKey] - API Key-ga qarsoodiga ah ee mashruucaaga
-  /// [baseUrl] - URL-ka server-ka SuperAIB (Default: http://localhost:8080/api/v1)
   static SuperAIB initialize({
     required String projectRef,
     required String apiKey,
@@ -58,18 +43,23 @@ class SuperAIB {
       apiKey: apiKey,
       baseUrl: baseUrl ?? "http://localhost:8080/api/v1",
     );
-    
-    print("🚀 SuperAIB SDK: Initialized successfully for Project [$projectRef]");
     return _instance!;
   }
 
-  /// Get the current instance of SuperAIB
+  /// 🚀 MUCJISADA CUSUB: Aqoonsiga User-ka marka uu Login sameeyo
+  void setIdentity(String userID) {
+    realtime.setUserID(userID);
+    print("👤 SuperAIB Identity set for User: $userID");
+  }
+
+  /// Markuu User-ku Logout yiraahdo
+  void clearIdentity() {
+    realtime.setUserID(null);
+    realtime.disconnect();
+  }
+
   static SuperAIB get instance {
-    if (_instance == null) {
-      throw Exception(
-        "SuperAIB has not been initialized. Please call SuperAIB.initialize() in your main() function.",
-      );
-    }
+    if (_instance == null) throw Exception("SuperAIB not initialized");
     return _instance!;
   }
 }

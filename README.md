@@ -43,3 +43,30 @@ Tani waa khasab si dadku u ogaadaan waxa ku cusub version-ka **0.1.0**.
 
 - Initial release with Authentication module.
 
+
+- **New Module**: Added Full Realtime Support via WebSockets.
+- Features: Auto-reconnection with Exponential Backoff.
+- Features: Dynamic Identity Management (`setIdentity` / `clearIdentity`).
+- Features: Channel Subscription and Event Broadcasting.
+- Features: Presence Tracking (Join/Leave events).
+
+
+## Usage Example (Realtime)
+```dart
+// 1. Connect
+SuperAIB.instance.realtime.connect();
+
+// 2. Set user identity (Optional)
+SuperAIB.instance.setIdentity("user_123");
+
+// 3. Subscribe to a channel
+final myChannel = SuperAIB.instance.realtime.channel('chat_room');
+myChannel.subscribe();
+
+// 4. Listen for messages
+myChannel.on('new_message', (payload) {
+  print("Fariin: $payload");
+});
+
+// 5. Broadcast live
+myChannel.broadcast(event: 'typing', payload: {'status': true});
