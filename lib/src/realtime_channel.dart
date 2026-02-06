@@ -1,10 +1,11 @@
 import 'dart:async';
+import 'realtime_module.dart';
 
 class SuperAIBRealtimeChannel {
   final String name;
-  final dynamic _module; // SuperAIBRealtime
+  final SuperAIBRealtime _module;
 
-  // Callbacks for events: event_name -> list of functions
+  // Listeners loogu talagalay dhacdooyinka (Events)
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
   
   // Presence Stream
@@ -12,23 +13,16 @@ class SuperAIBRealtimeChannel {
 
   SuperAIBRealtimeChannel(this.name, this._module);
 
-  // 🚀 2. SUBSCRIBE: Bilaw dhageysiga qolka
+  // 🚀 1. SUBSCRIBE: Kani ayaa fariinta u diraya Server-ka
   void subscribe() {
+    print("📡 SDK: Subscribing to channel [$name]");
     _module.sendCommand({
       "action": "SUBSCRIBE",
       "channel": name,
     });
   }
 
-  // 🚀 3. EVENT LISTENERS: .on('new_message', (data) => ...)
-  void on(String eventName, Function(dynamic) callback) {
-    if (!_eventListeners.containsKey(eventName)) {
-      _eventListeners[eventName] = [];
-    }
-    _eventListeners[eventName]!.add(callback);
-  }
-
-  // 🚀 4. BROADCASTING: .broadcast(event: 'typing', payload: {...})
+  // 🚀 2. BROADCAST: U dir fariin Live ah qolka
   void broadcast({required String event, required Map<String, dynamic> payload}) {
     _module.sendCommand({
       "action": "BROADCAST",
@@ -38,24 +32,32 @@ class SuperAIBRealtimeChannel {
     });
   }
 
-  // 🚀 5. PRESENCE: Dhageysiga dadka soo galaya/baxaya
-  Stream<Map<String, dynamic>> presence() {
-    return _presenceController.stream;
+  // 🚀 3. LISTEN: Dhageyso fariimaha soo dhacaya
+  void on(String eventName, Function(dynamic) callback) {
+    if (!_eventListeners.containsKey(eventName)) {
+      _eventListeners[eventName] = [];
+    }
+    _eventListeners[eventName]!.add(callback);
   }
 
-  // INTERNAL: Marka fariin dhab ah laga soo helo WebSocket-ka
+  // 🚀 4. PRESENCE: La soco dadka Online-ka ah
+  Stream<Map<String, dynamic>> presence() => _presenceController.stream;
+
+  // INTERNAL: Waxaa waca RealtimeModule marka xog timaado
   void handleInternalMessage(Map<String, dynamic> data) {
-    final String eventType = data['event_type'];
+    final String? eventType = data['event_type'];
     final dynamic payload = data['payload'];
 
-    // A. Haddii ay tahay fariin caadi ah
+    if (eventType == null) return;
+
+    // A. Haddii ay tahay Custom Event (e.g. NEW_MESSAGE)
     if (_eventListeners.containsKey(eventType)) {
       for (var callback in _eventListeners[eventType]!) {
         callback(payload);
       }
     }
 
-    // B. Haddii ay tahay Presence (Join/Leave)
+    // B. Haddii ay tahay Presence (JOIN/LEFT)
     if (eventType.startsWith("PRESENCE_")) {
       _presenceController.add({
         "event": eventType.replaceFirst("PRESENCE_", ""),
@@ -66,9 +68,6 @@ class SuperAIBRealtimeChannel {
   }
 
   void unsubscribe() {
-    _module.sendCommand({
-      "action": "UNSUBSCRIBE",
-      "channel": name,
-    });
+    _module.sendCommand({"action": "UNSUBSCRIBE", "channel": name});
   }
 }

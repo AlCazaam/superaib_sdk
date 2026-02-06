@@ -10,7 +10,7 @@ class SuperAIBRealtime {
   final String _baseUrl;
   final String _projectRef;
   final String _apiKey;
-  String? _userID; // ✅ Hadda wuu isbeddeli karaa (Dynamic Identity)
+  String? _userID;
 
   WebSocketChannel? _channel;
   RealtimeStatus _status = RealtimeStatus.disconnected;
@@ -29,60 +29,58 @@ class SuperAIBRealtime {
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
   // 🚀 1. IDENTITY MANAGEMENT
-  /// Kani waa kan xiriirinaya User-ka markuu Login sameeyo
   void setUserID(String? id) {
     if (_userID == id) return;
-    
     _userID = id;
-    print("🆔 SuperAIB Realtime: Identity updated to [$id]");
+    print("🆔 SuperAIB Realtime: Identity set to [$id]");
 
-    // Haddii aan horay u xirnayn, dib u bilaw xiriirka si Server-ku u barto User-ka cusub
     if (_status == RealtimeStatus.connected) {
       _reconnectImmediately();
     }
   }
-void connect() {
+
+  // 🚀 2. CONNECTION MANAGEMENT
+  void connect() {
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
     
     _status = RealtimeStatus.connecting;
     _statusController.add(_status);
 
-    // Bedel http -> ws
+    // Build WebSocket URL (http -> ws, https -> wss)
     final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
     final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
     
-    // 🚀 URL-KA SAXDA AH:
-    // Waxaad leedahay baseUrl = http://localhost:8080/api/v1
-    // Markaa URL-ku wuxuu noqonayaa: ws://localhost:8080/api/v1/ws/PROJECT_ID?api_key=...
     final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
                   (_userID != null ? "&user_id=$_userID" : "");
 
-                  
+    print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
 
-    print("🌐 Connecting to SuperAIB: $wsUrl");
+    try {
+      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
 
-   try {
-    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-    
-    // ✅ KU DAR KAN: Sug 500ms si xiriirku u dhalo
-    Future.delayed(Duration(milliseconds: 500), () {
-      if (_status != RealtimeStatus.disconnected) {
-        _status = RealtimeStatus.connected;
-        _statusController.add(_status);
-        _reSubscribeToAll();
-      }
-    });
+      // ✅ Sug 500ms si xiriirku u dhalo si rasmi ah ka hor intaan xog la dirin
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (_status != RealtimeStatus.disconnected) {
+          _status = RealtimeStatus.connected;
+          _statusController.add(_status);
+          _retryAttempts = 0;
+          _reSubscribeToAll();
+        }
+      });
 
-    _channel!.stream.listen(
-      (message) => _onMessageReceived(message),
-      onDone: () => _handleDisconnect(),
-      onError: (err) => _handleDisconnect(),
-    );
-  } catch (e) { _handleDisconnect(); }
-}
+      _channel!.stream.listen(
+        (message) => _onMessageReceived(message),
+        onDone: () => _handleDisconnect(),
+        onError: (err) => _handleDisconnect(),
+      );
+      
+    } catch (e) {
+      print("❌ Realtime Error: $e");
+      _handleDisconnect();
+    }
+  }
 
   // 🚀 3. CHANNEL SYSTEM
-  /// Ka dhal qol cusub ama soo qaado kii hore u jiray
   SuperAIBRealtimeChannel channel(String name) {
     if (_activeChannels.containsKey(name)) {
       return _activeChannels[name]!;
@@ -97,15 +95,15 @@ void connect() {
     try {
       final data = json.decode(rawMessage);
       final String? channelName = data['channel'];
-      final String eventType = data['event_type'];
-
+      
       // A. U dir fariinta qolka ay ku socoto
       if (channelName != null && _activeChannels.containsKey(channelName)) {
         _activeChannels[channelName]!.handleInternalMessage(data);
       }
 
-      // B. Presence Handling: U qaybi dhamaan qolalka haddii uu user soo galay/baxay
-      if (eventType.startsWith("PRESENCE_")) {
+      // B. Presence Handling (Haddii uu yahay Global Event)
+      final String? eventType = data['event_type'];
+      if (eventType != null && eventType.startsWith("PRESENCE_")) {
         for (var channel in _activeChannels.values) {
           channel.handleInternalMessage(data);
         }
@@ -121,10 +119,8 @@ void connect() {
 
     _status = RealtimeStatus.reconnecting;
     _statusController.add(_status);
-    
     _reconnectTimer?.cancel();
     
-    // Exponential Backoff: 1s, 2s, 4s, 8s... ilaa 30s
     int waitTime = (1 << _retryAttempts); 
     if (waitTime > 30) waitTime = 30;
 
@@ -147,7 +143,6 @@ void connect() {
     }
   }
 
-  /// U dir amarada dhanka Server-ka (Internal use by Channels)
   void sendCommand(Map<String, dynamic> data) {
     if (_status == RealtimeStatus.connected && _channel != null) {
       try {
@@ -158,16 +153,13 @@ void connect() {
     }
   }
 
-  // 🚀 6. DISCONNECT
   void disconnect() {
     _reconnectTimer?.cancel();
     _channel?.sink.close();
     _status = RealtimeStatus.disconnected;
     _statusController.add(_status);
-    print("🔌 SuperAIB Realtime: Disconnected manually.");
   }
 
   // Getters
-  RealtimeStatus get status => _status;
   bool get isConnected => _status == RealtimeStatus.connected;
 }
