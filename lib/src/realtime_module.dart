@@ -56,8 +56,10 @@ class SuperAIBRealtime {
     
     // 🚀 BEDDELKA MUHIIMKA AH: Xogta u dir URL-ka dhexdiisa si Middleware-ku u helo
     // URL Format: ws://server/ws/PROJECT_REF?api_key=YOUR_KEY
-    final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                  (_userID != null ? "&user_id=$_userID" : "");
+    
+                  // lib/src/realtime_module.dart dhexdiisa
+final wsUrl = "$cleanUrl/ws?project_id=$_projectRef&api_key=$_apiKey" + 
+              (_userID != null ? "&user_id=$_userID" : "");
 
     try {
       _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
