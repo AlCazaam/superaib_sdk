@@ -57,23 +57,29 @@ void connect() {
     final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
                   (_userID != null ? "&user_id=$_userID" : "");
 
+                  
+
     print("🌐 Connecting to SuperAIB: $wsUrl");
 
-    try {
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-      
-      _channel!.stream.listen(
-        (message) => _onMessageReceived(message),
-        onDone: () => _handleDisconnect(),
-        onError: (err) => _handleDisconnect(),
-      );
-      
-      _status = RealtimeStatus.connected;
-      _statusController.add(_status);
-    } catch (e) {
-      _handleDisconnect();
-    }
-  }
+   try {
+    _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
+    
+    // ✅ KU DAR KAN: Sug 500ms si xiriirku u dhalo
+    Future.delayed(Duration(milliseconds: 500), () {
+      if (_status != RealtimeStatus.disconnected) {
+        _status = RealtimeStatus.connected;
+        _statusController.add(_status);
+        _reSubscribeToAll();
+      }
+    });
+
+    _channel!.stream.listen(
+      (message) => _onMessageReceived(message),
+      onDone: () => _handleDisconnect(),
+      onError: (err) => _handleDisconnect(),
+    );
+  } catch (e) { _handleDisconnect(); }
+}
 
   // 🚀 3. CHANNEL SYSTEM
   /// Ka dhal qol cusub ama soo qaado kii hore u jiray
