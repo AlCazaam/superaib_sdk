@@ -2,6 +2,7 @@ library superaib_sdk;
 
 import 'package:dio/dio.dart';
 import 'package:superaib_sdk/src/auth_module.dart';
+import 'package:superaib_sdk/src/database_module.dart';
 
 
 /// SuperAIB Cloud SDK for Flutter
@@ -16,6 +17,7 @@ class SuperAIB {
 
   // Modules: Adeegyada ay SuperAIB bixiso
   late final SuperAIBAuth auth;
+   late final SuperAIBDatabase db;
 
 
   // Private Constructor
@@ -23,6 +25,7 @@ class SuperAIB {
     required this.projectRef,
     required this.apiKey,
     required this.baseUrl,
+
   }) {
     // 1. Setup HTTP Client (Dio)
     _client = Dio(BaseOptions(
@@ -35,6 +38,9 @@ class SuperAIB {
 
     // 2. Initialize Modules
     auth = SuperAIBAuth(_client, projectRef);
+     // Initialize Database Module
+    db = SuperAIBDatabase(_client, projectRef);
+
 
   }
 
