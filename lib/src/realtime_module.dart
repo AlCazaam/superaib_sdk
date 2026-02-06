@@ -42,7 +42,8 @@ class SuperAIBRealtime {
     }
   }
 
-  // 🚀 2. CONNECTION MANAGEMENT
+
+// 🚀 2. CONNECTION MANAGEMENT (Full Updated Function)
   void connect() {
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
     
@@ -50,11 +51,12 @@ class SuperAIBRealtime {
     _statusController.add(_status);
 
     // Build WebSocket URL: Bedel http -> ws
-    // Sidoo kale raaci ProjectID, API Key iyo UserID (haddii uu jiro)
     final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
     final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
     
-    final wsUrl = "$cleanUrl/ws?project_id=$_projectRef&api_key=$_apiKey" + 
+    // 🚀 BEDDELKA MUHIIMKA AH: Xogta u dir URL-ka dhexdiisa si Middleware-ku u helo
+    // URL Format: ws://server/ws/PROJECT_REF?api_key=YOUR_KEY
+    final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
                   (_userID != null ? "&user_id=$_userID" : "");
 
     try {
@@ -63,19 +65,25 @@ class SuperAIBRealtime {
 
       _channel!.stream.listen(
         (message) => _onMessageReceived(message),
-        onDone: () => _handleDisconnect(),
-        onError: (err) => _handleDisconnect(),
+        onDone: () {
+          print("🔌 Realtime: Connection closed by server.");
+          _handleDisconnect();
+        },
+        onError: (err) {
+          print("❌ Realtime Error: $err");
+          _handleDisconnect();
+        },
       );
 
       _status = RealtimeStatus.connected;
       _statusController.add(_status);
       _retryAttempts = 0;
       
-      // Markay dhuuntu dhalato, dib u subscribe gareey dhamaan qolalkii hore u furnaa
+      // Dib u subscribe-gareey qolalkii hore u furnaa
       _reSubscribeToAll();
       
     } catch (e) {
-      print("❌ SuperAIB Realtime Connection Error: $e");
+      print("🚀 Exception while connecting to Realtime: $e");
       _handleDisconnect();
     }
   }
