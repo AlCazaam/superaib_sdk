@@ -32,14 +32,14 @@ final docs = await SuperAIB.instance.db
 Tani waa khasab si dadku u ogaadaan waxa ku cusub version-ka **0.1.0**.
 
 ```markdown
-## 0.3.2
+## 0.3.4
 
 - **New Feature**: Added Full Database Module.
 - Supported 11 CRUD operations: `add`, `get`, `set`, `update`, `upsert`, `delete`, `exists`, `increment`, `count`.
 - Supported 7 Query & Filtering operations: `where`, `orWhere`, `select`, `search`, `orderBy`, `limit`, `offset`.
 - Integrated Analytics and Usage tracking for database operations.
 
-##  0.3.2
+##  0.3.4
 
 - Initial release with Authentication module.
 

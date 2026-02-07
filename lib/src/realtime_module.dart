@@ -1,11 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io'; // MUHIIM: Waxaan u baahanahay HttpClient-ka hoose
+import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'realtime_channel.dart';
 
-import 'package:web_socket_channel/io.dart'; 
-
-/// Xaaladaha xiriirka WebSocket
 enum RealtimeStatus { disconnected, connecting, connected, reconnecting }
 
 class SuperAIBRealtime {
@@ -17,96 +16,98 @@ class SuperAIBRealtime {
   WebSocketChannel? _channel;
   RealtimeStatus _status = RealtimeStatus.disconnected;
   
-  // Channels manager: Ku xafid qolalka firfircoon halkan
   final Map<String, SuperAIBRealtimeChannel> _activeChannels = {};
-  
-  // Status Stream: Si UI-gu u ogaado haddii la xiran yahay iyo haddii kale
   final _statusController = StreamController<RealtimeStatus>.broadcast();
   Stream<RealtimeStatus> get onStatusChange => _statusController.stream;
 
-  // Reconnection Logic
   int _retryAttempts = 0;
   Timer? _reconnectTimer;
 
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
-  // 🚀 1. IDENTITY MANAGEMENT
+  // 🚀 CONNECTION ENGINE (ROCK SOLID VERSION)
+  Future<void> connect() async {
+    if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) {
+      print("ℹ️ SDK: Already connected or connecting. Skipping...");
+      return;
+    }
+
+    _status = RealtimeStatus.connecting;
+    _statusController.add(_status);
+
+    // 1. URL Building & Cleaning
+    final String cleanBase = _baseUrl.endsWith('/') 
+        ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
+    
+    final String wsProtocol = cleanBase.startsWith('https') ? 'wss' : 'ws';
+    final String finalBaseUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+    
+    final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                         (_userID != null ? "&user_id=$_userID" : "");
+
+    print("🌐 SDK: Starting Connection to [$wsUrl]");
+
+    try {
+      // 2. 🚀 THE NUCLEAR FIX FOR RSV BITS (OPCODE 7)
+      // Waxaan isticmaalaynaa WebSocket-ka hoose ee Dart si aan compression-ka gabi ahaanba u damino
+      final WebSocket socket = await WebSocket.connect(
+        wsUrl,
+        compression: CompressionOptions.compressionOff,
+      ).timeout(const Duration(seconds: 10));
+
+      // 3. Ku dhex xir IOWebSocketChannel
+      _channel = IOWebSocketChannel(socket);
+
+      // 4. Update Status
+      _status = RealtimeStatus.connected;
+      _statusController.add(_status);
+      _retryAttempts = 0;
+      
+      print("✅ SDK: WebSocket Connected Successfully!");
+
+      // 5. Dib u subscribe-garee qolalkii hore
+      _reSubscribeToAll();
+
+      // 6. Listen to Stream
+      _channel!.stream.listen(
+        (message) {
+          print("📩 SDK: Raw Message Received -> $message");
+          _onMessageReceived(message);
+        },
+        onDone: () {
+          print("🔌 SDK: Connection Closed by Server.");
+          _handleDisconnect();
+        },
+        onError: (err) {
+          print("❌ SDK: Stream Error occurred -> $err");
+          _handleDisconnect();
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      print("❌ SDK: Connection Failed to Start -> $e");
+      _handleDisconnect();
+    }
+  }
+
+  // Identity Management
   void setUserID(String? id) {
     if (_userID == id) return;
     _userID = id;
-    print("🆔 SuperAIB Realtime: Identity set to [$id]");
-
-    if (_status == RealtimeStatus.connected) {
-      _reconnectImmediately();
-    }
+    print("🆔 SDK: Identity set to [$id]");
+    if (_status == RealtimeStatus.connected) _reconnectImmediately();
   }
 
-  Future<void> connect() async {
-  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
-
-  _status = RealtimeStatus.connecting;
-  _statusController.add(_status);
-
-  // 🚀 MUHIIM: Hubi in port-ka uu yahay 8080 iyo path-ka saxda ah
-  // ws://localhost:8080/api/v1/ws/PROJECT_ID
-  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey${_userID != null ? "&user_id=$_userID" : ""}";
-
-  print("🌐 SDK: Trying to connect to $wsUrl");
-
-  try {
-    _channel = IOWebSocketChannel.connect(
-      Uri.parse(wsUrl),
-      pingInterval: Duration(seconds: 10),
-    );
-
-    // Kani waa muhiim si loo hubiyo inuu xiriirku dhashay
-    _status = RealtimeStatus.connected;
-    _statusController.add(_status);
-    print("✅ SDK: WebSocket Connected Successfully");
-
-    _reSubscribeToAll();
-
-    _channel!.stream.listen(
-      (message) {
-        print("📩 SDK: Received raw message: $message");
-        _onMessageReceived(message);
-      },
-      onDone: () {
-        print("🔌 SDK: Connection Closed");
-        _handleDisconnect();
-      },
-      onError: (err) {
-        print("❌ SDK: Connection Error: $err");
-        _handleDisconnect();
-      },
-    );
-  } catch (e) {
-    print("❌ SDK: Catch error: $e");
-    _handleDisconnect();
-  }
-}
-  // 🚀 3. CHANNEL SYSTEM
-  SuperAIBRealtimeChannel channel(String name) {
-    if (_activeChannels.containsKey(name)) {
-      return _activeChannels[name]!;
-    }
-    final newChannel = SuperAIBRealtimeChannel(name, this);
-    _activeChannels[name] = newChannel;
-    return newChannel;
-  }
-
-  // 🚀 4. MESSAGE DISTRIBUTOR (Internal)
+  // 🚀 4. MESSAGE DISTRIBUTOR
   void _onMessageReceived(dynamic rawMessage) {
     try {
       final data = json.decode(rawMessage);
       final String? channelName = data['channel'];
       
-      // A. U dir fariinta qolka ay ku socoto
       if (channelName != null && _activeChannels.containsKey(channelName)) {
         _activeChannels[channelName]!.handleInternalMessage(data);
       }
 
-      // B. Presence Handling (Haddii uu yahay Global Event)
       final String? eventType = data['event_type'];
       if (eventType != null && eventType.startsWith("PRESENCE_")) {
         for (var channel in _activeChannels.values) {
@@ -114,14 +115,12 @@ class SuperAIBRealtime {
         }
       }
     } catch (e) {
-      print("⚠️ Realtime Parsing Error: $e");
+      print("⚠️ SDK Parsing Error: $e");
     }
   }
 
-  // 🚀 5. RESILIENCE (Auto-Reconnection)
   void _handleDisconnect() {
     if (_status == RealtimeStatus.disconnected) return;
-
     _status = RealtimeStatus.reconnecting;
     _statusController.add(_status);
     _reconnectTimer?.cancel();
@@ -129,8 +128,7 @@ class SuperAIBRealtime {
     int waitTime = (1 << _retryAttempts); 
     if (waitTime > 30) waitTime = 30;
 
-    print("⚠️ SuperAIB Realtime: Link lost. Retrying in $waitTime seconds...");
-
+    print("⚠️ SDK: Link lost. Retrying in $waitTime seconds...");
     _reconnectTimer = Timer(Duration(seconds: waitTime), () {
       _retryAttempts++;
       connect();
@@ -143,8 +141,11 @@ class SuperAIBRealtime {
   }
 
   void _reSubscribeToAll() {
-    for (var channel in _activeChannels.values) {
-      channel.subscribe();
+    if (_activeChannels.isNotEmpty) {
+      print("📡 SDK: Re-subscribing to ${_activeChannels.length} channels...");
+      for (var channel in _activeChannels.values) {
+        channel.subscribe();
+      }
     }
   }
 
@@ -153,7 +154,7 @@ class SuperAIBRealtime {
       try {
         _channel!.sink.add(json.encode(data));
       } catch (e) {
-        print("❌ Failed to send command: $e");
+        print("❌ SDK: Failed to send command -> $e");
       }
     }
   }
@@ -163,8 +164,15 @@ class SuperAIBRealtime {
     _channel?.sink.close();
     _status = RealtimeStatus.disconnected;
     _statusController.add(_status);
+    print("🔌 SDK: Disconnected Manually.");
   }
 
-  // Getters
+  SuperAIBRealtimeChannel channel(String name) {
+    if (_activeChannels.containsKey(name)) return _activeChannels[name]!;
+    final newChannel = SuperAIBRealtimeChannel(name, this);
+    _activeChannels[name] = newChannel;
+    return newChannel;
+  }
+
   bool get isConnected => _status == RealtimeStatus.connected;
 }
