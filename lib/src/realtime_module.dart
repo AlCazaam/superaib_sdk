@@ -46,44 +46,30 @@ Future<void> connect() async {
   _status = RealtimeStatus.connecting;
   _statusController.add(_status);
 
-  // 🚀 SAX: Hubi in URL-ku uusan lahayn labo dhibic (//) oo khaldan
-  final String cleanBaseUrl = _baseUrl.endsWith('/') 
-      ? _baseUrl.substring(0, _baseUrl.length - 1) 
-      : _baseUrl;
-
-  final String wsProtocol = cleanBaseUrl.startsWith('https') ? 'wss' : 'ws';
-  final String finalBaseUrl = cleanBaseUrl.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
-  
-  // URL-ka saxda ah
-  final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
+  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey" + 
                        (_userID != null ? "&user_id=$_userID" : "");
 
-  print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
+  print("🌐 Connecting to $wsUrl");
 
   try {
-    // ✅ XALKA: Isticmaal WebSocket.connect oo leh compressionOff
-    final WebSocket socket = await WebSocket.connect(
-      wsUrl,
-      compression: CompressionOptions.compressionOff, // Kani waa kan rasmiga ah
+    // ✅ Isticmaal habkan standard-ka ah
+    _channel = IOWebSocketChannel.connect(
+      Uri.parse(wsUrl),
+      pingInterval: Duration(seconds: 10),
     );
-
-    _channel = IOWebSocketChannel(socket);
 
     _status = RealtimeStatus.connected;
     _statusController.add(_status);
     _retryAttempts = 0;
     
-    print("✅ SuperAIB Realtime: Connected Successfully");
     _reSubscribeToAll();
 
     _channel!.stream.listen(
       (message) => _onMessageReceived(message),
       onDone: () => _handleDisconnect(),
       onError: (err) => _handleDisconnect(),
-      cancelOnError: true,
     );
   } catch (e) {
-    print("❌ SuperAIB Realtime Connection Error: $e");
     _handleDisconnect();
   }
 }
