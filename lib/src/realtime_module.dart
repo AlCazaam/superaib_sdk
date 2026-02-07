@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'realtime_channel.dart';
+import 'dart:io';
+import 'package:web_socket_channel/io.dart'; 
 
 /// Xaaladaha xiriirka WebSocket
 enum RealtimeStatus { disconnected, connecting, connected, reconnecting }
@@ -40,7 +42,7 @@ class SuperAIBRealtime {
   }
 
   // 🚀 2. CONNECTION MANAGEMENT
-  void connect() {
+void connect() async { // Ka dhig 'async'
   if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
   
   _status = RealtimeStatus.connecting;
@@ -48,39 +50,29 @@ class SuperAIBRealtime {
 
   final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
   final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
-  
-  final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                (_userID != null ? "&user_id=$_userID" : "");
+  final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey${_userID != null ? "&user_id=$_userID" : ""}";
 
   print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
 
   try {
-    // ✅ XALKA: Isticmaal WebSocketChannel.connect adigoo hubinaya inaanan compression header loo dirin
-    _channel = WebSocketChannel.connect(
-      Uri.parse(wsUrl),
-      // Mararka qaar web_socket_channel wuxuu u baahan yahay protocols madhan si uusan compression u raadin
-    );
+    // 🚀 XALKA DHABTA AH: Force disable compression in Dart
+    final WebSocket socket = await WebSocket.connect(wsUrl, compression: CompressionOptions.compressionOff);
+    _channel = IOWebSocketChannel(socket);
 
-    // ✅ Sug in xiriirku dhasho
+    // ✅ Sug 500ms
     Future.delayed(const Duration(milliseconds: 500), () {
       if (_status != RealtimeStatus.disconnected) {
         _status = RealtimeStatus.connected;
         _statusController.add(_status);
         _retryAttempts = 0;
-        _reSubscribeToAll(); // Halkan ayaa Subscribe loo dirayaa
+        _reSubscribeToAll(); 
       }
     });
 
     _channel!.stream.listen(
       (message) => _onMessageReceived(message),
-      onDone: () {
-        print("🔌 Connection closed by server");
-        _handleDisconnect();
-      },
-      onError: (err) {
-        print("❌ Socket Error: $err");
-        _handleDisconnect();
-      },
+      onDone: () => _handleDisconnect(),
+      onError: (err) => _handleDisconnect(),
       cancelOnError: true,
     );
     
