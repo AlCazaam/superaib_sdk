@@ -41,44 +41,54 @@ class SuperAIBRealtime {
 
   // 🚀 2. CONNECTION MANAGEMENT
   void connect() {
-    if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
+  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
+  
+  _status = RealtimeStatus.connecting;
+  _statusController.add(_status);
+
+  final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
+  final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
+  
+  final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                (_userID != null ? "&user_id=$_userID" : "");
+
+  print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
+
+  try {
+    // ✅ XALKA: Isticmaal WebSocketChannel.connect adigoo hubinaya inaanan compression header loo dirin
+    _channel = WebSocketChannel.connect(
+      Uri.parse(wsUrl),
+      // Mararka qaar web_socket_channel wuxuu u baahan yahay protocols madhan si uusan compression u raadin
+    );
+
+    // ✅ Sug in xiriirku dhasho
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (_status != RealtimeStatus.disconnected) {
+        _status = RealtimeStatus.connected;
+        _statusController.add(_status);
+        _retryAttempts = 0;
+        _reSubscribeToAll(); // Halkan ayaa Subscribe loo dirayaa
+      }
+    });
+
+    _channel!.stream.listen(
+      (message) => _onMessageReceived(message),
+      onDone: () {
+        print("🔌 Connection closed by server");
+        _handleDisconnect();
+      },
+      onError: (err) {
+        print("❌ Socket Error: $err");
+        _handleDisconnect();
+      },
+      cancelOnError: true,
+    );
     
-    _status = RealtimeStatus.connecting;
-    _statusController.add(_status);
-
-    // Build WebSocket URL (http -> ws, https -> wss)
-    final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
-    final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
-    
-    final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                  (_userID != null ? "&user_id=$_userID" : "");
-
-    print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
-
-    try {
-      _channel = WebSocketChannel.connect(Uri.parse(wsUrl));
-
-      // ✅ Sug 500ms si xiriirku u dhalo si rasmi ah ka hor intaan xog la dirin
-      Future.delayed(const Duration(milliseconds: 500), () {
-        if (_status != RealtimeStatus.disconnected) {
-          _status = RealtimeStatus.connected;
-          _statusController.add(_status);
-          _retryAttempts = 0;
-          _reSubscribeToAll();
-        }
-      });
-
-      _channel!.stream.listen(
-        (message) => _onMessageReceived(message),
-        onDone: () => _handleDisconnect(),
-        onError: (err) => _handleDisconnect(),
-      );
-      
-    } catch (e) {
-      print("❌ Realtime Error: $e");
-      _handleDisconnect();
-    }
+  } catch (e) {
+    print("❌ Realtime Error: $e");
+    _handleDisconnect();
   }
+}
 
   // 🚀 3. CHANNEL SYSTEM
   SuperAIBRealtimeChannel channel(String name) {
