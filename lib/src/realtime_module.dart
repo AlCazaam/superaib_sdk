@@ -27,68 +27,51 @@ class SuperAIBRealtime {
 
   // 🚀 CONNECTION ENGINE (ROCK SOLID VERSION)
   Future<void> connect() async {
-    if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) {
-      print("ℹ️ SDK: Already connected or connecting. Skipping...");
-      return;
-    }
+  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
-    _status = RealtimeStatus.connecting;
+  _status = RealtimeStatus.connecting;
+  _statusController.add(_status);
+
+  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                       (_userID != null ? "&user_id=$_userID" : "");
+
+  print("🌐 SDK: Connecting to $wsUrl");
+
+  try {
+    // 🚀 XALKA: Ha isku deyin inaad WebSocket.connect async ku samayso,
+    // u ogolow IOWebSocketChannel inuu isaga dhameeyo Handshake-ka.
+    _channel = IOWebSocketChannel.connect(
+      Uri.parse(wsUrl),
+      pingInterval: const Duration(seconds: 10),
+    );
+
+    // Update Status
+    _status = RealtimeStatus.connected;
     _statusController.add(_status);
-
-    // 1. URL Building & Cleaning
-    final String cleanBase = _baseUrl.endsWith('/') 
-        ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
+    _retryAttempts = 0;
     
-    final String wsProtocol = cleanBase.startsWith('https') ? 'wss' : 'ws';
-    final String finalBaseUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
-    
-    final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                         (_userID != null ? "&user_id=$_userID" : "");
+    print("✅ SDK: WebSocket Connected Successfully!");
+    _reSubscribeToAll();
 
-    print("🌐 SDK: Starting Connection to [$wsUrl]");
-
-    try {
-      // 2. 🚀 THE NUCLEAR FIX FOR RSV BITS (OPCODE 7)
-      // Waxaan isticmaalaynaa WebSocket-ka hoose ee Dart si aan compression-ka gabi ahaanba u damino
-      final WebSocket socket = await WebSocket.connect(
-        wsUrl,
-        compression: CompressionOptions.compressionOff,
-      ).timeout(const Duration(seconds: 10));
-
-      // 3. Ku dhex xir IOWebSocketChannel
-      _channel = IOWebSocketChannel(socket);
-
-      // 4. Update Status
-      _status = RealtimeStatus.connected;
-      _statusController.add(_status);
-      _retryAttempts = 0;
-      
-      print("✅ SDK: WebSocket Connected Successfully!");
-
-      // 5. Dib u subscribe-garee qolalkii hore
-      _reSubscribeToAll();
-
-      // 6. Listen to Stream
-      _channel!.stream.listen(
-        (message) {
-          print("📩 SDK: Raw Message Received -> $message");
-          _onMessageReceived(message);
-        },
-        onDone: () {
-          print("🔌 SDK: Connection Closed by Server.");
-          _handleDisconnect();
-        },
-        onError: (err) {
-          print("❌ SDK: Stream Error occurred -> $err");
-          _handleDisconnect();
-        },
-        cancelOnError: true,
-      );
-    } catch (e) {
-      print("❌ SDK: Connection Failed to Start -> $e");
-      _handleDisconnect();
-    }
+    _channel!.stream.listen(
+      (message) {
+        _onMessageReceived(message);
+      },
+      onDone: () {
+        print("🔌 SDK: Connection Closed by Server.");
+        _handleDisconnect();
+      },
+      onError: (err) {
+        print("❌ SDK: Stream Error: $err");
+        _handleDisconnect();
+      },
+      cancelOnError: true,
+    );
+  } catch (e) {
+    print("❌ SDK: Connect Error: $e");
+    _handleDisconnect();
   }
+}
 
   // Identity Management
   void setUserID(String? id) {
