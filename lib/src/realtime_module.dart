@@ -25,55 +25,59 @@ class SuperAIBRealtime {
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
   // 🚀 CONNECTION ENGINE (FIXED & POWERFUL)
+// 🚀 CONNECTION ENGINE (STRICT PLAIN-TEXT VERSION)
   Future<void> connect() async {
+    // 1. Hubi haddii uu horay u xirnaa
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
     _status = RealtimeStatus.connecting;
     _statusController.add(_status);
 
     try {
-      // 1. Dhis URL-ka WebSocket-ka si sax ah
-      // Ka saar '/' dhamaadka hadii uu jiro
+      // 2. URL Sanitization: Ka saar '/' dhamaadka hadii uu jiro
       String cleanBase = _baseUrl.endsWith('/') 
           ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
       
       String wsUrl;
 
-      // 2. Protocol Switcher (Nuclear Fix)
-      // Haddii uu yahay http -> ws, haddii uu yahay https -> wss
+      // 3. Protocol Switcher: http -> ws, https -> wss
       if (cleanBase.startsWith('https://')) {
         wsUrl = cleanBase.replaceFirst('https://', 'wss://');
       } else if (cleanBase.startsWith('http://')) {
         wsUrl = cleanBase.replaceFirst('http://', 'ws://');
       } else {
-        // Haddii uu horeba u ahaa ws/wss
-        wsUrl = cleanBase;
+        wsUrl = cleanBase; // Haddii uu horay u ahaa ws/wss
       }
 
-      // 3. Final Path Assembly
-      // Backend-kaagu wuxuu rabaa: /api/v1/ws/{project_id}
+      // 4. Final Path Assembly: /ws/{project_id}?api_key={key}&user_id={id}
       final String finalWsUrl = "$wsUrl/ws/$_projectRef?api_key=$_apiKey" + 
                            (_userID != null ? "&user_id=$_userID" : "");
 
       print("🌐 SDK: Connecting to WebSocket -> $finalWsUrl");
 
-      // 4. Connect using IOWebSocketChannel
+      // 5. 🚀 THE NUCLEAR FIX: 
+      // Waxaan ku xiraynaa IOWebSocketChannel anagoo si xoog ah u tirtirayna 
+      // Sec-WebSocket-Extensions si aan u joojino RSV1/Compression Error.
       _channel = IOWebSocketChannel.connect(
         Uri.parse(finalWsUrl),
         pingInterval: const Duration(seconds: 10),
+        // 🛡️ Kani waa furaha guusha Simulator-ka:
+        headers: {
+          'Sec-WebSocket-Extensions': '', // Force disable compression extensions
+        },
       );
 
-      // Sug in yar si aan u hubino in xiriirku dhashay
+      // 6. Update Status
       _status = RealtimeStatus.connected;
       _statusController.add(_status);
       _retryAttempts = 0;
       
-      print("✅ SDK: WebSocket Connected Successfully!");
+      print("✅ SDK: WebSocket Connected Successfully (Plain Text Mode)");
       
-      // Markii xiriirku dhasho, dib ugu biir dhamaan channels-kii hore
+      // 7. Re-subscribe to existing channels (if any)
       _reSubscribeToAll();
 
-      // Dhageyso fariimaha soo dhacaya
+      // 8. Dhageyso fariimaha soo dhacaya (The Stream)
       _channel!.stream.listen(
         (message) {
           _onMessageReceived(message);
@@ -83,7 +87,7 @@ class SuperAIBRealtime {
           _handleDisconnect();
         },
         onError: (err) {
-          print("❌ SDK: Stream Error: $err");
+          print("❌ SDK: WebSocket Stream Error: $err");
           _handleDisconnect();
         },
         cancelOnError: true,
@@ -93,7 +97,6 @@ class SuperAIBRealtime {
       _handleDisconnect();
     }
   }
-
   // 🆔 Identity Management
   void setUserID(String? id) {
     if (_userID == id) return;
