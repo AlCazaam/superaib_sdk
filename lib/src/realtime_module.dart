@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io'; // MUHIIM: Waxaan u baahanahay HttpClient-ka hoose
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'realtime_channel.dart';
@@ -8,7 +7,7 @@ import 'realtime_channel.dart';
 enum RealtimeStatus { disconnected, connecting, connected, reconnecting }
 
 class SuperAIBRealtime {
-  final String _baseUrl;
+  final String _baseUrl; // Tusaale: http://localhost:8080/api/v1
   final String _projectRef;
   final String _apiKey;
   String? _userID;
@@ -25,61 +24,88 @@ class SuperAIBRealtime {
 
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
-  // 🚀 CONNECTION ENGINE (ROCK SOLID VERSION)
-Future<void> connect() async {
-  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
+  // 🚀 CONNECTION ENGINE (FIXED & POWERFUL)
+  Future<void> connect() async {
+    if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
-  _status = RealtimeStatus.connecting;
-  _statusController.add(_status);
-
-  // 🚀 XALKA: Bedel http -> ws si rasmi ah
-  final String cleanBase = _baseUrl.endsWith('/') 
-      ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
-  
-  // Kani wuxuu hubinayaa inuu noqdo ws:// ama wss://
-  final String wsProtocol = cleanBase.startsWith('https') ? 'wss' : 'ws';
-  final String finalBaseUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
-  
-  final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                       (_userID != null ? "&user_id=$_userID" : "");
-
-  print("🌐 SDK: Connecting to $wsUrl");
-
-  try {
-    _channel = IOWebSocketChannel.connect(
-      Uri.parse(wsUrl),
-      pingInterval: const Duration(seconds: 10),
-    );
-
-    _status = RealtimeStatus.connected;
+    _status = RealtimeStatus.connecting;
     _statusController.add(_status);
-    _retryAttempts = 0;
-    
-    print("✅ SDK: WebSocket Connected Successfully!");
-    _reSubscribeToAll();
 
-    _channel!.stream.listen(
-      (message) {
-        _onMessageReceived(message);
-      },
-      onDone: () => _handleDisconnect(),
-      onError: (err) => _handleDisconnect(),
-      cancelOnError: true,
-    );
-  } catch (e) {
-    print("❌ SDK: Connect Error: $e");
-    _handleDisconnect();
+    try {
+      // 1. Dhis URL-ka WebSocket-ka si sax ah
+      // Ka saar '/' dhamaadka hadii uu jiro
+      String cleanBase = _baseUrl.endsWith('/') 
+          ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
+      
+      String wsUrl;
+
+      // 2. Protocol Switcher (Nuclear Fix)
+      // Haddii uu yahay http -> ws, haddii uu yahay https -> wss
+      if (cleanBase.startsWith('https://')) {
+        wsUrl = cleanBase.replaceFirst('https://', 'wss://');
+      } else if (cleanBase.startsWith('http://')) {
+        wsUrl = cleanBase.replaceFirst('http://', 'ws://');
+      } else {
+        // Haddii uu horeba u ahaa ws/wss
+        wsUrl = cleanBase;
+      }
+
+      // 3. Final Path Assembly
+      // Backend-kaagu wuxuu rabaa: /api/v1/ws/{project_id}
+      final String finalWsUrl = "$wsUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                           (_userID != null ? "&user_id=$_userID" : "");
+
+      print("🌐 SDK: Connecting to WebSocket -> $finalWsUrl");
+
+      // 4. Connect using IOWebSocketChannel
+      _channel = IOWebSocketChannel.connect(
+        Uri.parse(finalWsUrl),
+        pingInterval: const Duration(seconds: 10),
+      );
+
+      // Sug in yar si aan u hubino in xiriirku dhashay
+      _status = RealtimeStatus.connected;
+      _statusController.add(_status);
+      _retryAttempts = 0;
+      
+      print("✅ SDK: WebSocket Connected Successfully!");
+      
+      // Markii xiriirku dhasho, dib ugu biir dhamaan channels-kii hore
+      _reSubscribeToAll();
+
+      // Dhageyso fariimaha soo dhacaya
+      _channel!.stream.listen(
+        (message) {
+          _onMessageReceived(message);
+        },
+        onDone: () {
+          print("🔌 SDK: Connection Closed by Server.");
+          _handleDisconnect();
+        },
+        onError: (err) {
+          print("❌ SDK: Stream Error: $err");
+          _handleDisconnect();
+        },
+        cancelOnError: true,
+      );
+    } catch (e) {
+      print("❌ SDK: Critical Connection Error: $e");
+      _handleDisconnect();
+    }
   }
-}
-  // Identity Management
+
+  // 🆔 Identity Management
   void setUserID(String? id) {
     if (_userID == id) return;
     _userID = id;
     print("🆔 SDK: Identity set to [$id]");
-    if (_status == RealtimeStatus.connected) _reconnectImmediately();
+    // Haddii uu qofka isbedelo, xiriirka dib u bilow si uu Server-ka cusub ugu aqoonsado
+    if (_status == RealtimeStatus.connected) {
+      _reconnectImmediately();
+    }
   }
 
-  // 🚀 4. MESSAGE DISTRIBUTOR
+  // 🚀 MESSAGE DISTRIBUTOR
   void _onMessageReceived(dynamic rawMessage) {
     try {
       final data = json.decode(rawMessage);
@@ -89,6 +115,7 @@ Future<void> connect() async {
         _activeChannels[channelName]!.handleInternalMessage(data);
       }
 
+      // Presence events (Optional)
       final String? eventType = data['event_type'];
       if (eventType != null && eventType.startsWith("PRESENCE_")) {
         for (var channel in _activeChannels.values) {
@@ -102,10 +129,12 @@ Future<void> connect() async {
 
   void _handleDisconnect() {
     if (_status == RealtimeStatus.disconnected) return;
+    
     _status = RealtimeStatus.reconnecting;
     _statusController.add(_status);
     _reconnectTimer?.cancel();
     
+    // Exponential Backoff (1s, 2s, 4s, 8s... ilaa 30s)
     int waitTime = (1 << _retryAttempts); 
     if (waitTime > 30) waitTime = 30;
 
@@ -118,7 +147,7 @@ Future<void> connect() async {
 
   void _reconnectImmediately() {
     disconnect();
-    connect();
+    Future.delayed(Duration(milliseconds: 500), () => connect());
   }
 
   void _reSubscribeToAll() {
@@ -137,6 +166,8 @@ Future<void> connect() async {
       } catch (e) {
         print("❌ SDK: Failed to send command -> $e");
       }
+    } else {
+      print("⚠️ SDK: Cannot send. Not connected.");
     }
   }
 
