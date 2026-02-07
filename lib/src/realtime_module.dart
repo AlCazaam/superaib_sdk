@@ -40,65 +40,50 @@ class SuperAIBRealtime {
       _reconnectImmediately();
     }
   }
-
-  // 🚀 2. CONNECTION MANAGEMENT
 Future<void> connect() async {
-  if (_status == RealtimeStatus.connected ||
-      _status == RealtimeStatus.connecting) {
-    return;
-  }
+  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
   _status = RealtimeStatus.connecting;
   _statusController.add(_status);
 
-  final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
-  final String cleanUrl =
-      _baseUrl.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+  // 🚀 SAX: Hubi in URL-ku uusan lahayn labo dhibic (//) oo khaldan
+  final String cleanBaseUrl = _baseUrl.endsWith('/') 
+      ? _baseUrl.substring(0, _baseUrl.length - 1) 
+      : _baseUrl;
 
-  final String wsUrl =
-      "$cleanUrl/ws/$_projectRef"
-      "?api_key=$_apiKey"
-      "${_userID != null ? "&user_id=$_userID" : ""}";
+  final String wsProtocol = cleanBaseUrl.startsWith('https') ? 'wss' : 'ws';
+  final String finalBaseUrl = cleanBaseUrl.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+  
+  // URL-ka saxda ah
+  final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
+                       (_userID != null ? "&user_id=$_userID" : "");
 
   print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
 
   try {
-    // ✅ MUHIIM: compression si rasmi ah u demi
+    // ✅ XALKA: Isticmaal WebSocket.connect oo leh compressionOff
     final WebSocket socket = await WebSocket.connect(
       wsUrl,
-      compression: CompressionOptions.compressionOff,
+      compression: CompressionOptions.compressionOff, // Kani waa kan rasmiga ah
     );
 
-    // ⚠️ XUSUUS: iOS/Android qaar way iska indha tiraan tan,
-    // sidaas darteed backend-ku sidoo kale waa inuu diidaa extensions
     _channel = IOWebSocketChannel(socket);
 
-    // ✅ HALKAN KALIYA AYAAN DHIGAYNAA CONNECTED
     _status = RealtimeStatus.connected;
     _statusController.add(_status);
     _retryAttempts = 0;
-
-    print("✅ SuperAIB Realtime: Connected");
-
-    // dib ugu subscribe garee channels-kii hore
+    
+    print("✅ SuperAIB Realtime: Connected Successfully");
     _reSubscribeToAll();
 
     _channel!.stream.listen(
-      (message) {
-        _onMessageReceived(message);
-      },
-      onDone: () {
-        print("🔌 SuperAIB Realtime: Connection closed");
-        _handleDisconnect();
-      },
-      onError: (error) {
-        print("❌ SuperAIB Realtime Error: $error");
-        _handleDisconnect();
-      },
+      (message) => _onMessageReceived(message),
+      onDone: () => _handleDisconnect(),
+      onError: (err) => _handleDisconnect(),
       cancelOnError: true,
     );
   } catch (e) {
-    print("❌ SuperAIB Realtime Connect Failed: $e");
+    print("❌ SuperAIB Realtime Connection Error: $e");
     _handleDisconnect();
   }
 }
