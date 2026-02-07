@@ -42,46 +42,66 @@ class SuperAIBRealtime {
   }
 
   // 🚀 2. CONNECTION MANAGEMENT
-void connect() async { // Ka dhig 'async'
-  if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
-  
+Future<void> connect() async {
+  if (_status == RealtimeStatus.connected ||
+      _status == RealtimeStatus.connecting) {
+    return;
+  }
+
   _status = RealtimeStatus.connecting;
   _statusController.add(_status);
 
   final String wsProtocol = _baseUrl.startsWith('https') ? 'wss' : 'ws';
-  final String cleanUrl = _baseUrl.replaceFirst(RegExp(r'http(s)?'), wsProtocol);
-  final wsUrl = "$cleanUrl/ws/$_projectRef?api_key=$_apiKey${_userID != null ? "&user_id=$_userID" : ""}";
+  final String cleanUrl =
+      _baseUrl.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+
+  final String wsUrl =
+      "$cleanUrl/ws/$_projectRef"
+      "?api_key=$_apiKey"
+      "${_userID != null ? "&user_id=$_userID" : ""}";
 
   print("🌐 SuperAIB Realtime: Connecting to $wsUrl");
 
   try {
-    // 🚀 XALKA DHABTA AH: Force disable compression in Dart
-    final WebSocket socket = await WebSocket.connect(wsUrl, compression: CompressionOptions.compressionOff);
+    // ✅ MUHIIM: compression si rasmi ah u demi
+    final WebSocket socket = await WebSocket.connect(
+      wsUrl,
+      compression: CompressionOptions.compressionOff,
+    );
+
+    // ⚠️ XUSUUS: iOS/Android qaar way iska indha tiraan tan,
+    // sidaas darteed backend-ku sidoo kale waa inuu diidaa extensions
     _channel = IOWebSocketChannel(socket);
 
-    // ✅ Sug 500ms
-    Future.delayed(const Duration(milliseconds: 500), () {
-      if (_status != RealtimeStatus.disconnected) {
-        _status = RealtimeStatus.connected;
-        _statusController.add(_status);
-        _retryAttempts = 0;
-        _reSubscribeToAll(); 
-      }
-    });
+    // ✅ HALKAN KALIYA AYAAN DHIGAYNAA CONNECTED
+    _status = RealtimeStatus.connected;
+    _statusController.add(_status);
+    _retryAttempts = 0;
+
+    print("✅ SuperAIB Realtime: Connected");
+
+    // dib ugu subscribe garee channels-kii hore
+    _reSubscribeToAll();
 
     _channel!.stream.listen(
-      (message) => _onMessageReceived(message),
-      onDone: () => _handleDisconnect(),
-      onError: (err) => _handleDisconnect(),
+      (message) {
+        _onMessageReceived(message);
+      },
+      onDone: () {
+        print("🔌 SuperAIB Realtime: Connection closed");
+        _handleDisconnect();
+      },
+      onError: (error) {
+        print("❌ SuperAIB Realtime Error: $error");
+        _handleDisconnect();
+      },
       cancelOnError: true,
     );
-    
   } catch (e) {
-    print("❌ Realtime Error: $e");
+    print("❌ SuperAIB Realtime Connect Failed: $e");
     _handleDisconnect();
   }
 }
-
   // 🚀 3. CHANNEL SYSTEM
   SuperAIBRealtimeChannel channel(String name) {
     if (_activeChannels.containsKey(name)) {
