@@ -40,36 +40,48 @@ class SuperAIBRealtime {
       _reconnectImmediately();
     }
   }
-Future<void> connect() async {
+
+  Future<void> connect() async {
   if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
   _status = RealtimeStatus.connecting;
   _statusController.add(_status);
 
-  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey" + 
-                       (_userID != null ? "&user_id=$_userID" : "");
+  // 🚀 MUHIIM: Hubi in port-ka uu yahay 8080 iyo path-ka saxda ah
+  // ws://localhost:8080/api/v1/ws/PROJECT_ID
+  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey${_userID != null ? "&user_id=$_userID" : ""}";
 
-  print("🌐 Connecting to $wsUrl");
+  print("🌐 SDK: Trying to connect to $wsUrl");
 
   try {
-    // ✅ Isticmaal habkan standard-ka ah
     _channel = IOWebSocketChannel.connect(
       Uri.parse(wsUrl),
       pingInterval: Duration(seconds: 10),
     );
 
+    // Kani waa muhiim si loo hubiyo inuu xiriirku dhashay
     _status = RealtimeStatus.connected;
     _statusController.add(_status);
-    _retryAttempts = 0;
-    
+    print("✅ SDK: WebSocket Connected Successfully");
+
     _reSubscribeToAll();
 
     _channel!.stream.listen(
-      (message) => _onMessageReceived(message),
-      onDone: () => _handleDisconnect(),
-      onError: (err) => _handleDisconnect(),
+      (message) {
+        print("📩 SDK: Received raw message: $message");
+        _onMessageReceived(message);
+      },
+      onDone: () {
+        print("🔌 SDK: Connection Closed");
+        _handleDisconnect();
+      },
+      onError: (err) {
+        print("❌ SDK: Connection Error: $err");
+        _handleDisconnect();
+      },
     );
   } catch (e) {
+    print("❌ SDK: Catch error: $e");
     _handleDisconnect();
   }
 }
