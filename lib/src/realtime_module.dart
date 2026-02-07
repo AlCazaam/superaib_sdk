@@ -26,26 +26,31 @@ class SuperAIBRealtime {
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
   // 🚀 CONNECTION ENGINE (ROCK SOLID VERSION)
-  Future<void> connect() async {
+Future<void> connect() async {
   if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
   _status = RealtimeStatus.connecting;
   _statusController.add(_status);
 
-  final String wsUrl = "$_baseUrl/ws/$_projectRef?api_key=$_apiKey" + 
+  // 🚀 XALKA: Bedel http -> ws si rasmi ah
+  final String cleanBase = _baseUrl.endsWith('/') 
+      ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
+  
+  // Kani wuxuu hubinayaa inuu noqdo ws:// ama wss://
+  final String wsProtocol = cleanBase.startsWith('https') ? 'wss' : 'ws';
+  final String finalBaseUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+  
+  final String wsUrl = "$finalBaseUrl/ws/$_projectRef?api_key=$_apiKey" + 
                        (_userID != null ? "&user_id=$_userID" : "");
 
   print("🌐 SDK: Connecting to $wsUrl");
 
   try {
-    // 🚀 XALKA: Ha isku deyin inaad WebSocket.connect async ku samayso,
-    // u ogolow IOWebSocketChannel inuu isaga dhameeyo Handshake-ka.
     _channel = IOWebSocketChannel.connect(
       Uri.parse(wsUrl),
       pingInterval: const Duration(seconds: 10),
     );
 
-    // Update Status
     _status = RealtimeStatus.connected;
     _statusController.add(_status);
     _retryAttempts = 0;
@@ -57,14 +62,8 @@ class SuperAIBRealtime {
       (message) {
         _onMessageReceived(message);
       },
-      onDone: () {
-        print("🔌 SDK: Connection Closed by Server.");
-        _handleDisconnect();
-      },
-      onError: (err) {
-        print("❌ SDK: Stream Error: $err");
-        _handleDisconnect();
-      },
+      onDone: () => _handleDisconnect(),
+      onError: (err) => _handleDisconnect(),
       cancelOnError: true,
     );
   } catch (e) {
@@ -72,7 +71,6 @@ class SuperAIBRealtime {
     _handleDisconnect();
   }
 }
-
   // Identity Management
   void setUserID(String? id) {
     if (_userID == id) return;
