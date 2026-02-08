@@ -4,14 +4,16 @@ import 'package:dio/dio.dart';
 import 'package:superaib_sdk/src/auth_module.dart';
 import 'package:superaib_sdk/src/database_module.dart';
 import 'package:superaib_sdk/src/realtime_module.dart';
-import 'package:superaib_sdk/src/storage_module.dart'; // 👈 CUSUB
+import 'package:superaib_sdk/src/storage_module.dart';
+import 'package:superaib_sdk/src/notification_module.dart'; // 👈 CUSUB
 
 // 🚀 EXPORTS: Si App-kaagu u arko Classes-ka
 export 'package:superaib_sdk/src/auth_module.dart';
 export 'package:superaib_sdk/src/database_module.dart';
 export 'package:superaib_sdk/src/realtime_module.dart';
 export 'package:superaib_sdk/src/realtime_channel.dart';
-export 'package:superaib_sdk/src/storage_module.dart'; // 👈 CUSUB
+export 'package:superaib_sdk/src/storage_module.dart';
+export 'package:superaib_sdk/src/notification_module.dart'; // 👈 CUSUB
 export 'package:superaib_sdk/src/query_builder.dart';
 
 class SuperAIB {
@@ -22,11 +24,12 @@ class SuperAIB {
   final String baseUrl;
   late final Dio _client;
 
-  // Modules-ka SDK-ga
+  // Tiirarka SuperAIB Cloud
   late final SuperAIBAuth auth;
   late final SuperAIBDatabase db;
   late final SuperAIBRealtime realtime;
-  late final SuperAIBStorage storage; // 👈 CUSUB
+  late final SuperAIBStorage storage;
+  late final SuperAIBNotifications notifications; // 👈 CUSUB
 
   SuperAIB._internal({
     required this.projectRef,
@@ -45,7 +48,10 @@ class SuperAIB {
     auth = SuperAIBAuth(_client, projectRef);
     db = SuperAIBDatabase(_client, projectRef);
     realtime = SuperAIBRealtime(_client, projectRef, apiKey);
-    storage = SuperAIBStorage(_client, projectRef); // 👈 INITIALIZE STORAGE
+    storage = SuperAIBStorage(_client, projectRef);
+    
+    // 🚀 INITIALIZE NOTIFICATIONS: Waxay u baahantahay Realtime Broadcaster-ka
+    notifications = SuperAIBNotifications(_client, projectRef, realtime);
   }
 
   static SuperAIB initialize({
@@ -58,13 +64,13 @@ class SuperAIB {
       apiKey: apiKey,
       baseUrl: baseUrl ?? "http://localhost:8080/api/v1",
     );
-    print("🚀 SuperAIB SDK: Initialized with Auth, DB, Realtime, and Storage.");
+    print("🚀 SuperAIB SDK: The Full Power is Ready (Auth, DB, Realtime, Storage, Notifications).");
     return _instance!;
   }
 
-  // Identity
+  // Set user identity across all modules
   void setIdentity(String userID) {
-    print("🆔 SDK: Identity set to [$userID]");
+    print("🆔 SDK: User identity set to [$userID]");
   }
 
   void clearIdentity() {

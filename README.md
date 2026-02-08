@@ -1,21 +1,17 @@
-# SuperAIB SDK
+# SuperAIB SDK 🚀
 
-The official Flutter SDK for SuperAIB Cloud. A powerful Backend-as-a-Service (BaaS) for building modern apps.
+The official Flutter SDK for SuperAIB Cloud. Build scalable apps with ease using our 5 core pillars.
 
-## Features
-- 🔐 **Authentication**: Email/Password, Google, Facebook & Impersonation.
-- 🗄️ **Database**: NoSQL-style Collections & Documents with powerful querying.
-- 📡 **Realtime**: Live WebSocket-based channels and event broadcasting.
-- 📁 **Storage**: Manage file metadata, cloud URLs, and storage tracking. 🚀 (NEW)
+## 🌟 Features
+- 🔐 **Authentication**: Email/Password, Social Login, and Impersonation.
+- 🗄️ **Database**: Powerful NoSQL Documents & Collections with advanced querying.
+- 📡 **Realtime**: Live event broadcasting and channel subscriptions (HTTP Polling Optimized).
+- 📁 **Storage**: Binary file uploads to Cloudinary with metadata tracking in pgAdmin.
+- 🔔 **Notifications**: Live in-app notifications and broadcast alerts.
 
-## Installation
+## 🚀 Installation
 ```bash
 flutter pub add superaib_sdk
-
-## Installation
-```bash
-flutter pub add superaib_sdk
-
 
 Usage Example (Database)
 
@@ -35,7 +31,7 @@ final docs = await SuperAIB.instance.db
 ### 3. `CHANGELOG.md` (Update History)
 
 ```markdown
-## 0.4.3
+## 0.4.5
 
 - **New Module**: Added Full Storage Module.
 - Features: `createFileRecord` to link cloud files with pgAdmin.
@@ -44,13 +40,13 @@ final docs = await SuperAIB.instance.db
 - Integrated Analytics: Tracking storage usage (MB) and file counts.
 - Optimized Realtime: Improved HTTP Fallback for better stability.
 
-## 0.4.2
+## 0.4.5
 
 - **New Module**: Added Full Realtime Support.
 - WebSocket-based Channel Subscription and Event Broadcasting.
 - Integrated Full Database Module (11 CRUD ops + 7 Query filters).
 
-## 0.4.0
+## 0.4.5
 
 - Initial release with Authentication module (Email/Password, Social, Impersonation).
 
@@ -101,3 +97,31 @@ chatChannel?.subscribe();
 chatChannel?.on('NEW_MESSAGE', (payload) {
   print("New Chat: ${payload['text']}");
 });
+
+4. Live Notifications
+
+SuperAIB.instance.notifications.onNotificationReceived((data) {
+  print("🔔 New Alert: ${data['title']} - ${data['body']}");
+});
+
+---
+
+### 3. `CHANGELOG.md` (The Evolution)
+
+```markdown
+## 0.4.5
+
+- **New Module**: Added Full Notifications Module (`onNotificationReceived` / `sendBroadcast`).
+- **Storage Update**: Supported Binary File Uploads (`uploadFile`) directly to Cloudinary via Backend.
+- **Realtime Stability**: Optimized `channel()` to be `Future`-based for better pgAdmin sync.
+- **Improved Security**: Integrated Auth Identity across all modules.
+
+## 0.4.5
+
+- Minor fixes for WebSocket Handshake in iOS Simulators.
+- Added automatic project ID detection in Middleware.
+
+## 0.4.5
+
+- Initial release with Authentication and Database modules.
+- Integrated Realtime WebSocket support.
