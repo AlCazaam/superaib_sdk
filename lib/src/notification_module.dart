@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
 import 'realtime_module.dart';
 
@@ -8,26 +10,7 @@ class SuperAIBNotifications {
 
   SuperAIBNotifications(this._dio, this._projectRef, this._realtime);
 
-  // 🚀 1. REGISTER DEVICE
-  Future<void> registerDevice({
-    required String token,
-    required String platform, 
-    required String userId,
-  }) async {
-    try {
-      await _dio.post(
-        '/projects/$_projectRef/notifications/register',
-        data: {
-          'token': token,
-          'platform': platform,
-          'user_id': userId,
-        },
-      );
-      print("✅ Notifications: Device registered successfully.");
-    } catch (e) {
-      print("❌ Notifications Error: $e");
-    }
-  }
+
 
   // 🚀 2. SEND BROADCAST
   Future<void> sendBroadcast({
@@ -52,6 +35,43 @@ class SuperAIBNotifications {
       print("❌ Notifications Error: $e");
     }
   }
+  // 🚀 1. ENABLE PUSH (AUTOMATIC REGISTRATION)
+  // Kani wuxuu si otomaatig ah u garanayaa Platform-ka (Android/iOS)
+  Future<void> enablePush({required String token, required String userId}) async {
+    String platform = "web";
+    if (Platform.isAndroid) platform = "android";
+    if (Platform.isIOS) platform = "ios";
+
+    print("📱 SDK: Auto-registering device for $platform...");
+    
+    return registerDevice(
+      token: token,
+      platform: platform,
+      userId: userId,
+    );
+  }
+
+  // 🚀 2. REGISTER DEVICE (Manual)
+  Future<void> registerDevice({
+    required String token,
+    required String platform, 
+    required String userId,
+  }) async {
+    try {
+      await _dio.post(
+        '/projects/$_projectRef/notifications/register',
+        data: {
+          'token': token,
+          'platform': platform,
+          'user_id': userId,
+        },
+      );
+      print("✅ Notifications: Device Token saved in pgAdmin!");
+    } catch (e) {
+      print("❌ Notifications Error: $e");
+    }
+  }
+
 
   // 🚀 3. LISTEN FOR LIVE NOTIFICATIONS (FIXED ✅)
   // Waxaan ku darnay 'async' iyo 'await' halkan
