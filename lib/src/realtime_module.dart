@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'realtime_channel.dart';
@@ -35,7 +36,7 @@ class SuperAIBRealtime {
   }
 
   // 🚀 CONNECTION ENGINE (STABLE VERSION)
-  Future<void> connect() async {
+ Future<void> connect() async {
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
     _status = RealtimeStatus.connecting;
@@ -45,54 +46,51 @@ class SuperAIBRealtime {
       String cleanBase = _baseUrl.endsWith('/') 
           ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
       
-      // Protocol Switcher (http -> ws)
-      String wsUrl = cleanBase.startsWith('https') 
-          ? cleanBase.replaceFirst('https', 'wss') 
-          : cleanBase.replaceFirst('http', 'ws');
-
-      final String finalWsUrl = "$wsUrl/ws/$_projectRef?api_key=$_apiKey" + 
+      String wsProtocol = cleanBase.startsWith('https') ? 'wss' : 'ws';
+      String finalWsUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), wsProtocol);
+      
+      final String wsUrl = "$finalWsUrl/ws/$_projectRef?api_key=$_apiKey" + 
                            (_userID != null ? "&user_id=$_userID" : "");
 
-      print("🌐 SDK: Connecting to WebSocket -> $finalWsUrl");
+      print("🌐 SDK: Connecting to $wsUrl");
 
-      _channel = IOWebSocketChannel.connect(
-        Uri.parse(finalWsUrl),
-        pingInterval: const Duration(seconds: 10),
-        headers: { 'Sec-WebSocket-Extensions': '' }, // Fix for iOS Simulator
-      );
+      // 🚀 NUCLEAR FIX: Isticmaal WebSocket toos ah ka hor intaanan wrap gareyn
+      // Kani wuxuu noo oggolaanayaa inaan damino compression-ka iOS.
+      final socket = await WebSocket.connect(wsUrl);
+      socket.pingInterval = const Duration(seconds: 10);
+      
+      _channel = IOWebSocketChannel(socket);
 
-      // Listen to the stream
+      _status = RealtimeStatus.connected;
+      _statusController.add(_status);
+      _retryAttempts = 0;
+      
+      print("✅ SDK: WebSocket Connected!");
+
+      // 🚀 MUHIIM: Sug 500ms ka hor intaanan fariin dirin si socket-ku u dego
+      Future.delayed(const Duration(milliseconds: 500), () {
+        _reSubscribeToAll();
+      });
+
       _channel!.stream.listen(
         (message) => _onMessageReceived(message),
         onDone: () => _handleDisconnect(),
         onError: (err) => _handleDisconnect(),
         cancelOnError: true,
       );
-
-      _status = RealtimeStatus.connected;
-      _statusController.add(_status);
-      _retryAttempts = 0;
-      
-      print("✅ SDK: WebSocket Connected Successfully!");
-      _reSubscribeToAll();
-
     } catch (e) {
-      print("❌ SDK: Connection Error: $e");
+      print("❌ SDK Connect Error: $e");
       _handleDisconnect();
     }
   }
 
-  // 📤 SEND COMMAND (The Bridge to pgAdmin)
   void sendCommand(Map<String, dynamic> data) {
     if (_status == RealtimeStatus.connected && _channel != null) {
-      final jsonStr = json.encode(data);
-      print("📤 SDK SENDING: $jsonStr");
-      _channel!.sink.add(jsonStr);
-    } else {
-      print("⚠️ SDK WARNING: Cannot send. Socket is $_status");
+      final String rawJson = json.encode(data);
+      print("📤 SDK SENDING: $rawJson");
+      _channel!.sink.add(rawJson);
     }
   }
-
   // 📥 MESSAGE DISTRIBUTOR
   void _onMessageReceived(dynamic rawMessage) {
     try {
