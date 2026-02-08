@@ -4,12 +4,14 @@ import 'package:dio/dio.dart';
 import 'package:superaib_sdk/src/auth_module.dart';
 import 'package:superaib_sdk/src/database_module.dart';
 import 'package:superaib_sdk/src/realtime_module.dart';
+import 'package:superaib_sdk/src/storage_module.dart'; // 👈 CUSUB
 
-// 🚀 EXPORTS: Si App-kaagu u arko dhamaan Classes-ka muhiimka ah
+// 🚀 EXPORTS: Si App-kaagu u arko Classes-ka
 export 'package:superaib_sdk/src/auth_module.dart';
 export 'package:superaib_sdk/src/database_module.dart';
 export 'package:superaib_sdk/src/realtime_module.dart';
 export 'package:superaib_sdk/src/realtime_channel.dart';
+export 'package:superaib_sdk/src/storage_module.dart'; // 👈 CUSUB
 export 'package:superaib_sdk/src/query_builder.dart';
 
 class SuperAIB {
@@ -24,14 +26,13 @@ class SuperAIB {
   late final SuperAIBAuth auth;
   late final SuperAIBDatabase db;
   late final SuperAIBRealtime realtime;
+  late final SuperAIBStorage storage; // 👈 CUSUB
 
-  // Constructor-ka gaarka ah (Private)
   SuperAIB._internal({
     required this.projectRef,
     required this.apiKey,
     required this.baseUrl,
   }) {
-    // 🛠️ 1. SETUP DIO: Kani waa mishiinka xogta qaada
     _client = Dio(BaseOptions(
       baseUrl: baseUrl.endsWith('/') ? baseUrl : '$baseUrl/',
       headers: {
@@ -40,15 +41,13 @@ class SuperAIB {
       },
     ));
 
-    // 🛠️ 2. INITIALIZE MODULES
+    // Initialize dhamaan modules-ka
     auth = SuperAIBAuth(_client, projectRef);
     db = SuperAIBDatabase(_client, projectRef);
-    
-    // 🚀 MUHIIM: Realtime module hadda wuxuu qaataa Dio instance (_client)
     realtime = SuperAIBRealtime(_client, projectRef, apiKey);
+    storage = SuperAIBStorage(_client, projectRef); // 👈 INITIALIZE STORAGE
   }
 
-  // 🚀 INITIALIZE: Kani waa midka looga waco Main.dart
   static SuperAIB initialize({
     required String projectRef,
     required String apiKey,
@@ -59,26 +58,21 @@ class SuperAIB {
       apiKey: apiKey,
       baseUrl: baseUrl ?? "http://localhost:8080/api/v1",
     );
-    
-    print("🚀 SuperAIB SDK: Initialized successfully in HTTP Realtime mode.");
+    print("🚀 SuperAIB SDK: Initialized with Auth, DB, Realtime, and Storage.");
     return _instance!;
   }
 
-  // Identity Management (User Tracking)
+  // Identity
   void setIdentity(String userID) {
-    print("🆔 SDK: User identity set to [$userID]");
+    print("🆔 SDK: Identity set to [$userID]");
   }
 
   void clearIdentity() {
-    print("🆔 SDK: Identity cleared.");
-    realtime.disconnect(); // Jooji dhamaan polling-ka socda
+    realtime.disconnect();
   }
 
-  // Singleton Instance Getter
   static SuperAIB get instance {
-    if (_instance == null) {
-      throw Exception("❌ SuperAIB SDK: Not initialized! Call SuperAIB.initialize() first.");
-    }
+    if (_instance == null) throw Exception("SuperAIB not initialized");
     return _instance!;
   }
 }
