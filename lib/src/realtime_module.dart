@@ -10,7 +10,7 @@ class SuperAIBRealtime {
   final String _baseUrl;
   final String _projectRef;
   final String _apiKey;
-  String? _userID; // 🆔 Kani waa muhiim
+  String? _userID;
 
   WebSocketChannel? _channel;
   RealtimeStatus _status = RealtimeStatus.disconnected;
@@ -24,19 +24,17 @@ class SuperAIBRealtime {
 
   SuperAIBRealtime(this._baseUrl, this._projectRef, this._apiKey);
 
-  // 🚀 1. IDENTITY MANAGEMENT (Halkaan kaga bado qaladka)
+  // 🆔 aqoonsiga User-ka
   void setUserID(String? id) {
     if (_userID == id) return;
     _userID = id;
     print("🆔 SDK: Identity set to [$id]");
-    
-    // Haddii uu qofka isbedelo isagoo Online ah, dib u xir si uu ugu xirmo User ID-ga cusub
     if (_status == RealtimeStatus.connected) {
       _reconnectImmediately();
     }
   }
 
-  // 🚀 2. CONNECTION ENGINE
+  // 🚀 CONNECTION ENGINE (STABLE VERSION)
   Future<void> connect() async {
     if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
 
@@ -47,14 +45,10 @@ class SuperAIBRealtime {
       String cleanBase = _baseUrl.endsWith('/') 
           ? _baseUrl.substring(0, _baseUrl.length - 1) : _baseUrl;
       
-      String wsUrl;
-      if (cleanBase.startsWith('https://')) {
-        wsUrl = cleanBase.replaceFirst('https://', 'wss://');
-      } else if (cleanBase.startsWith('http://')) {
-        wsUrl = cleanBase.replaceFirst('http://', 'ws://');
-      } else {
-        wsUrl = cleanBase; 
-      }
+      // Protocol Switcher (http -> ws)
+      String wsUrl = cleanBase.startsWith('https') 
+          ? cleanBase.replaceFirst('https', 'wss') 
+          : cleanBase.replaceFirst('http', 'ws');
 
       final String finalWsUrl = "$wsUrl/ws/$_projectRef?api_key=$_apiKey" + 
                            (_userID != null ? "&user_id=$_userID" : "");
@@ -64,7 +58,15 @@ class SuperAIBRealtime {
       _channel = IOWebSocketChannel.connect(
         Uri.parse(finalWsUrl),
         pingInterval: const Duration(seconds: 10),
-        headers: { 'Sec-WebSocket-Extensions': '' }, 
+        headers: { 'Sec-WebSocket-Extensions': '' }, // Fix for iOS Simulator
+      );
+
+      // Listen to the stream
+      _channel!.stream.listen(
+        (message) => _onMessageReceived(message),
+        onDone: () => _handleDisconnect(),
+        onError: (err) => _handleDisconnect(),
+        cancelOnError: true,
       );
 
       _status = RealtimeStatus.connected;
@@ -74,22 +76,29 @@ class SuperAIBRealtime {
       print("✅ SDK: WebSocket Connected Successfully!");
       _reSubscribeToAll();
 
-      _channel!.stream.listen(
-        (message) => _onMessageReceived(message),
-        onDone: () => _handleDisconnect(),
-        onError: (err) => _handleDisconnect(),
-        cancelOnError: true,
-      );
     } catch (e) {
+      print("❌ SDK: Connection Error: $e");
       _handleDisconnect();
     }
   }
 
-  // 🚀 3. MESSAGE DISTRIBUTOR
+  // 📤 SEND COMMAND (The Bridge to pgAdmin)
+  void sendCommand(Map<String, dynamic> data) {
+    if (_status == RealtimeStatus.connected && _channel != null) {
+      final jsonStr = json.encode(data);
+      print("📤 SDK SENDING: $jsonStr");
+      _channel!.sink.add(jsonStr);
+    } else {
+      print("⚠️ SDK WARNING: Cannot send. Socket is $_status");
+    }
+  }
+
+  // 📥 MESSAGE DISTRIBUTOR
   void _onMessageReceived(dynamic rawMessage) {
     try {
       final data = json.decode(rawMessage);
       final String? channelName = data['channel'];
+      
       if (channelName != null && _activeChannels.containsKey(channelName)) {
         _activeChannels[channelName]!.handleInternalMessage(data);
       }
@@ -100,6 +109,7 @@ class SuperAIBRealtime {
 
   void _handleDisconnect() {
     if (_status == RealtimeStatus.disconnected) return;
+    
     _status = RealtimeStatus.reconnecting;
     _statusController.add(_status);
     _reconnectTimer?.cancel();
@@ -107,6 +117,7 @@ class SuperAIBRealtime {
     int waitTime = (1 << _retryAttempts); 
     if (waitTime > 30) waitTime = 30;
 
+    print("🔌 SDK: Connection lost. Retrying in $waitTime seconds...");
     _reconnectTimer = Timer(Duration(seconds: waitTime), () {
       _retryAttempts++;
       connect();
@@ -119,14 +130,11 @@ class SuperAIBRealtime {
   }
 
   void _reSubscribeToAll() {
-    for (var channel in _activeChannels.values) {
-      channel.subscribe();
-    }
-  }
-
-  void sendCommand(Map<String, dynamic> data) {
-    if (_status == RealtimeStatus.connected && _channel != null) {
-      _channel!.sink.add(json.encode(data));
+    if (_activeChannels.isNotEmpty) {
+      print("📡 SDK: Re-subscribing to ${_activeChannels.length} channels...");
+      for (var channel in _activeChannels.values) {
+        channel.subscribe();
+      }
     }
   }
 

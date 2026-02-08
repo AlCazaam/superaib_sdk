@@ -5,15 +5,15 @@ class SuperAIBRealtimeChannel {
   final String name;
   final SuperAIBRealtime _module;
 
-  // Listeners loogu talagalay dhacdooyinka (Events)
+  // Listeners loogu talagalay Events (e.g. NEW_MESSAGE)
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
   
-  // Presence Stream
+  // Presence Stream (Optional)
   final _presenceController = StreamController<Map<String, dynamic>>.broadcast();
 
   SuperAIBRealtimeChannel(this.name, this._module);
 
-  // 🚀 1. SUBSCRIBE: Kani ayaa fariinta u diraya Server-ka
+  // 🚀 1. SUBSCRIBE: Kani ayaa fariinta u diraya Server-ka si pgAdmin u keydiyo
   void subscribe() {
     print("📡 SDK: Subscribing to channel [$name]");
     _module.sendCommand({
@@ -22,7 +22,7 @@ class SuperAIBRealtimeChannel {
     });
   }
 
-  // 🚀 2. BROADCAST: U dir fariin Live ah qolka
+  // 🚀 2. BROADCAST: U dir fariin Live ah (Tani waxay gashaa realtime_events)
   void broadcast({required String event, required Map<String, dynamic> payload}) {
     _module.sendCommand({
       "action": "BROADCAST",
@@ -40,9 +40,6 @@ class SuperAIBRealtimeChannel {
     _eventListeners[eventName]!.add(callback);
   }
 
-  // 🚀 4. PRESENCE: La soco dadka Online-ka ah
-  Stream<Map<String, dynamic>> presence() => _presenceController.stream;
-
   // INTERNAL: Waxaa waca RealtimeModule marka xog timaado
   void handleInternalMessage(Map<String, dynamic> data) {
     final String? eventType = data['event_type'];
@@ -57,15 +54,17 @@ class SuperAIBRealtimeChannel {
       }
     }
 
-    // B. Haddii ay tahay Presence (JOIN/LEFT)
+    // B. Haddii ay tahay Presence
     if (eventType.startsWith("PRESENCE_")) {
       _presenceController.add({
         "event": eventType.replaceFirst("PRESENCE_", ""),
-        "user_id": data['user_id'],
+        "user_id": data['sender_id'],
         "timestamp": data['timestamp'],
       });
     }
   }
+
+  Stream<Map<String, dynamic>> presence() => _presenceController.stream;
 
   void unsubscribe() {
     _module.sendCommand({"action": "UNSUBSCRIBE", "channel": name});
