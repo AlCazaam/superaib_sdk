@@ -59,35 +59,33 @@ class SuperAIBNotifications {
 
   // 🚀 3. LISTEN FOR NOTIFICATIONS (HTTP POLLING VERSION ✅)
   // Kani waa mishiinka adiga kugu haboon sxb (Passive & Stable)
-  void onNotificationReceived(Function(Map<String, dynamic>) callback) {
-    print("📡 SDK: Global HTTP Notification Listener is now ACTIVE.");
-    
-    // Haddii uu hore u socday, iska xir
+void onNotificationReceived(Function(Map<String, dynamic>) callback) {
+    print("📡 SDK: Notification listener is now ACTIVE.");
+
     _pollingTimer?.cancel();
 
-    // 2-dii ilbiriqsiba mar soo eeg pgAdmin fariimihii ugu dambeeyay
     _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      try {
-        final history = await getHistory();
-        if (history.isNotEmpty) {
-          final latest = history.first; // Fariinta ugu dambaysa
-          final String currentId = latest['id'].toString();
+      // 🚀 Hubi xogta ugu dambaysay
+      final history = await getHistory();
+      if (history.isNotEmpty) {
+        final latest = history.first;
+        final String currentId = latest['id'].toString();
 
-          // 🛠️ XALKA: Kaliya muuji haddii ID-gan uu yahay mid cusub!
-          if (_lastNotificationId == null) {
-            _lastNotificationId = currentId; // Marka ugu horreysa kaliya xasuuso
-          } else if (_lastNotificationId != currentId) {
-            _lastNotificationId = currentId; // Update last seen
-            print("🔔 SDK: New Notification detected via Polling!");
-            callback(Map<String, dynamic>.from(latest));
-          }
+        // 🛠️ XALKA: Eeg haddii fariinta ugu dambeysa ay 'true' u tahay pgAdmin
+        // (Ikhtiyaari ah haddii aad rabto inaad Server-ka ku kalsoonaato)
+        
+        if (_lastNotificationId == null) {
+          _lastNotificationId = currentId;
+        } else if (_lastNotificationId != currentId) {
+          _lastNotificationId = currentId;
+          
+          // Halkan waxaan u dhiibaynaa App-ka fariinta, 
+          // Provider-ka ayaana go'aan ka gaaraya inuu muujiyo.
+          callback(Map<String, dynamic>.from(latest));
         }
-      } catch (e) {
-        // Silent error to avoid terminal spam
       }
     });
   }
-
 // 🚀 GET REGISTRATION STATUS
   Future<Map<String, dynamic>> getRegistrationStatus(String userId) async {
     try {
