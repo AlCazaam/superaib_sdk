@@ -8,30 +8,26 @@ class SuperAIBRealtimeChannel {
   final SuperAIBRealtime _module;
   final Dio _dio;
 
-  // Listeners iyo Polling
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
   Timer? _pollingTimer;
   DateTime? _lastFetchTime;
 
   SuperAIBRealtimeChannel(this.name, this.channelId, this._module, this._dio);
 
-  // 🚀 1. SUBSCRIBE (Starts HTTP Polling)
+  // 🚀 1. SUBSCRIBE (HTTP Polling Fallback)
   void subscribe() {
     if (_pollingTimer != null) return;
-    
     print("📡 SDK: Subscribing to [$name] (Polling Mode Started)");
-    _lastFetchTime = DateTime.now(); // Kaliya soo qaado fariimaha hadda kadib imaanaya
+    _lastFetchTime = DateTime.now();
 
-    // 2-dii ilbiriqsiba mar soo hubi fariimo cusub
     _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) {
       _fetchNewEvents();
     });
   }
 
-  // 🚀 2. BROADCAST (HTTP POST - 100% Guaranteed pgAdmin Save)
+  // 🚀 2. BROADCAST (HTTP POST)
   Future<void> broadcast({required String event, required Map<String, dynamic> payload}) async {
     try {
-      print("📤 SDK: Broadcasting via HTTP...");
       await _dio.post(
         'projects/${_module.projectRef}/realtime/channels/$channelId/events',
         data: {
@@ -45,7 +41,7 @@ class SuperAIBRealtimeChannel {
     }
   }
 
-  // 🚀 3. LISTEN (On Event Received)
+  // 🚀 3. LISTEN
   void on(String eventName, Function(dynamic) callback) {
     if (!_eventListeners.containsKey(eventName)) {
       _eventListeners[eventName] = [];
@@ -53,41 +49,38 @@ class SuperAIBRealtimeChannel {
     _eventListeners[eventName]!.add(callback);
   }
 
-  // 🛠️ INTERNAL: Fetch events from pgAdmin
+  // 🚀 4. HANDLE INTERNAL MESSAGE (FIXED ✅)
+  // Kani waa kan uu RealtimeModule u yeerayo marka WebSocket fariin keeno
+  void handleInternalMessage(Map<String, dynamic> data) {
+    final String? eventType = data['event_type'];
+    final dynamic payload = data['payload'];
+
+    if (eventType != null && _eventListeners.containsKey(eventType)) {
+      for (var callback in _eventListeners[eventType]!) {
+        callback(payload);
+      }
+    }
+  }
+
+  // 🛠️ INTERNAL POLLING
   Future<void> _fetchNewEvents() async {
     try {
-      final response = await _dio.get(
-        'projects/${_module.projectRef}/realtime/channels/$channelId/events'
-      );
-
+      final response = await _dio.get('projects/${_module.projectRef}/realtime/channels/$channelId/events');
       if (response.statusCode == 200) {
         final List<dynamic> events = response.data['data'] ?? [];
-        
         for (var e in events) {
           final DateTime createdAt = DateTime.parse(e['created_at']);
-          
-          // Kaliya process gareey haddii ay fariintu tahay mid cusub
           if (_lastFetchTime == null || createdAt.isAfter(_lastFetchTime!)) {
-            final String eventType = e['event_type'];
-            final dynamic payload = e['payload'];
-
-            if (_eventListeners.containsKey(eventType)) {
-              for (var callback in _eventListeners[eventType]!) {
-                callback(payload);
-              }
-            }
-            _lastFetchTime = createdAt; // Update last fetch time
+            handleInternalMessage(e); // Isticmaal isla mishiinka kore
+            _lastFetchTime = createdAt;
           }
         }
       }
-    } catch (e) {
-      // Hilmad polling error si aysan u buuxin terminal-ka
-    }
+    } catch (e) { /* ignore polling errors */ }
   }
 
   void unsubscribe() {
     _pollingTimer?.cancel();
     _pollingTimer = null;
-    print("🔌 SDK: Unsubscribed from [$name]");
   }
 }

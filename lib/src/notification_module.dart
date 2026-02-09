@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'realtime_module.dart';
@@ -10,98 +11,67 @@ class SuperAIBNotifications {
 
   SuperAIBNotifications(this._dio, this._projectRef, this._realtime);
 
-  // 🚀 1. ENABLE PUSH (AUTOMATIC REGISTRATION)
-  // Kani wuxuu si otomaatig ah u garanayaa Platform-ka (Android/iOS)
-  Future<void> enablePush({required String token, required String userId}) async {
-    print("📱 SDK: Auto-registering device for push notifications...");
-    
-    return registerDevice(
-      token: token,
-      userId: userId,
-    );
-  }
-
-  // 🚀 2. REGISTER DEVICE: Kani waa kan pgAdmin xogta ku ridaya (device_tokens table)
-  Future<void> registerDevice({
-    required String token,
-    required String userId,
-    String? platform, // Haddii aan la soo dirin, SDK ayaa garanaya
-  }) async {
+  // 🚀 1. REGISTER DEVICE: pgAdmin (device_tokens)
+  Future<void> registerDevice({required String token, required String userId, String? platform}) async {
     try {
-      // 📱 Gari Platform-ka si otomaatig ah hadii aan la soo dhiibin
       String detectedPlatform = platform ?? (kIsWeb ? "web" : (Platform.isAndroid ? "android" : "ios"));
-
-      await _dio.post(
-        '/projects/$_projectRef/notifications/register',
-        data: {
-          'token': token,
-          'platform': detectedPlatform,
-          'user_id': userId,
-        },
-      );
-      print("✅ SDK: Device Token saved in pgAdmin ($detectedPlatform)");
-    } catch (e) {
-      print("❌ SDK Error: Device registration failed: $e");
-    }
-  }
-
-  // 🚀 3. SEND BROADCAST: U dir fariin qof kasta oo App-ka haysta
-  Future<void> sendBroadcast({
-    required String title,
-    required String body,
-    String? imageUrl,
-    String? deepLink,
-    Map<String, dynamic>? customData,
-  }) async {
-    try {
-      print("📤 SDK: Sending broadcast notification...");
-      await _dio.post(
-        '/projects/$_projectRef/notifications/broadcast',
-        data: {
-          'title': title,
-          'body': body,
-          'image_url': imageUrl,
-          'deep_link': deepLink,
-          'custom_data': customData ?? {},
-        },
-      );
-      print("✅ SDK: Broadcast processed by server.");
-    } catch (e) {
-      print("❌ SDK Error: Broadcast failed: $e");
-    }
-  }
-
-  // 🚀 4. LISTEN FOR LIVE NOTIFICATIONS
-  // Marka Dashboard-ka laga soo diro, fariintu halkan ayay ka soo baxaysaa si Live ah
-  void onNotificationReceived(Function(Map<String, dynamic>) callback) async {
-    print("📡 SDK: Setting up live notification listener...");
-
-    // Hubi in Realtime uu xiran yahay
-    _realtime.connect(); 
-
-    // 🛠️ Waa inaan sugnaa inta channel-ka laga soo abuurayo database-ka (HTTP)
-    final systemChannel = await _realtime.channel("project_system_events");
-    
-    if (systemChannel != null) {
-      // Bilow dhageysiga
-      systemChannel.subscribe();
-      
-      systemChannel.on("PUSH_NOTIFICATION", (payload) {
-        print("🔔 SDK: New Notification Received Live!");
-        callback(Map<String, dynamic>.from(payload));
+      await _dio.post('/projects/$_projectRef/notifications/register', data: {
+        'token': token,
+        'platform': detectedPlatform,
+        'user_id': userId,
       });
-    } else {
-      print("❌ SDK Error: Could not initialize notification channel.");
+      print("✅ SDK Notifications: Device token registered.");
+    } catch (e) {
+      print("❌ SDK Notifications Error: $e");
     }
   }
 
-  // 🚀 5. HISTORY: Ka soo qaado fariimihii hore loo diray pgAdmin
+  // 🚀 2. SEND BROADCAST (Dashboard Trigger)
+  Future<void> sendBroadcast({required String title, required String body}) async {
+    try {
+      await _dio.post('/projects/$_projectRef/notifications/broadcast', data: {
+        'title': title,
+        'body': body,
+      });
+      print("🚀 SDK Notifications: Broadcast sent to all.");
+    } catch (e) {
+      print("❌ SDK Notifications Error: Broadcast failed.");
+    }
+  }
+
+  // 🚀 3. ON NOTIFICATION RECEIVED (THE GLOBAL LISTENER ✅)
+  // Kani waa mishiinka ugu Professional-ka ah. Wuxuu dhageysanayaa WebSocket Stream-ka guud.
+  void onNotificationReceived(Function(Map<String, dynamic>) callback) {
+    print("📡 SDK: Global Notification Listener is now ACTIVE.");
+
+    // A. Hubi xiriirka
+    if (!_realtime.isConnected) {
+      _realtime.connect(); 
+    }
+
+    // B. Mishiinka SHAANDHEEYNTA (The Global Filter):
+    // Waxaan dhageysanaynaa dhacdo kasta oo WebSocket-ka dhex marta.
+    _realtime.onMessageReceived((rawMessage) {
+      try {
+        final data = json.decode(rawMessage);
+        
+        // Haddii fariintu tahay 'PUSH_NOTIFICATION', u sii App-ka
+        if (data['event_type'] == "PUSH_NOTIFICATION") {
+          print("🎯 SDK: Global Notification Caught from Stream!");
+          callback(Map<String, dynamic>.from(data['payload']));
+        }
+      } catch (e) {
+        // Iska dhaaf wixii aan JSON aheyn
+      }
+    });
+  }
+
+  // 🚀 4. FETCH HISTORY
   Future<List<dynamic>> getHistory() async {
     try {
       final res = await _dio.get('/projects/$_projectRef/notifications/history');
       return res.data['data'] ?? [];
     } catch (e) {
-      print("❌ SDK Error: Failed to fetch history: $e");
       return [];
     }
   }

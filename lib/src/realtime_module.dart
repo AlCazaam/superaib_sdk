@@ -1,51 +1,92 @@
+import 'dart:async';
+import 'dart:convert';
 import 'package:dio/dio.dart';
+import 'package:web_socket_channel/io.dart';
+import 'package:web_socket_channel/web_socket_channel.dart';
 import 'realtime_channel.dart';
+
+enum RealtimeStatus { disconnected, connecting, connected, reconnecting }
 
 class SuperAIBRealtime {
   final Dio _dio;
-  final String projectRef;
+  final String _projectRef;
   final String _apiKey;
+  String? _userID;
 
-  // Kaydka qolalka si aanan mar kasta HTTP u wicin
+  WebSocketChannel? _channel;
+  RealtimeStatus _status = RealtimeStatus.disconnected;
+  
   final Map<String, SuperAIBRealtimeChannel> _activeChannels = {};
+  final _messageController = StreamController<dynamic>.broadcast();
+  final _statusController = StreamController<RealtimeStatus>.broadcast();
 
-  SuperAIBRealtime(this._dio, this.projectRef, this._apiKey);
+  SuperAIBRealtime(this._dio, this._projectRef, this._apiKey);
 
-  // 🚀 GET CHANNEL (The HTTP Way)
-  // Kani waa async waayo waa inuu pgAdmin ka soo hubiyo ID-ga qolka
-  Future<SuperAIBRealtimeChannel?> channel(String name) async {
-    // Haddii uu qolku hore u furnaa, soo celi isaga
-    if (_activeChannels.containsKey(name)) return _activeChannels[name];
+  // 🚀 GETTER FOR PROJECT REF (FIXED ✅)
+  String get projectRef => _projectRef;
+
+  void setUserID(String? id) => _userID = id;
+
+  // 🛰️ CONNECT
+  Future<void> connect() async {
+    if (_status == RealtimeStatus.connected || _status == RealtimeStatus.connecting) return;
+    _status = RealtimeStatus.connecting;
+    _statusController.add(_status);
 
     try {
-      print("📡 SDK: Registering channel [$name] via HTTP...");
+      String cleanBase = _dio.options.baseUrl.endsWith('/') 
+          ? _dio.options.baseUrl.substring(0, _dio.options.baseUrl.length - 1) : _dio.options.baseUrl;
       
-      // 1. Marka hore pgAdmin ka hubi ama ka abuuro qolka (POST)
-      final response = await _dio.post(
-        'projects/$projectRef/realtime/channels',
-        data: {'name': name},
-      );
+      String wsUrl = cleanBase.replaceFirst(RegExp(r'^http(s)?'), cleanBase.startsWith('https') ? 'wss' : 'ws');
+      final String finalUrl = "$wsUrl/ws/$_projectRef?api_key=$_apiKey" + (_userID != null ? "&user_id=$_userID" : "");
 
-      if (response.statusCode == 201 || response.statusCode == 200) {
-        // Hel UUID-ga saxda ah ee pgAdmin u dhalisay qolka
-        final String channelId = response.data['data']['id'];
-        
-        // 2. Abuuro Class-ka qolka
-        final newChannel = SuperAIBRealtimeChannel(name, channelId, this, _dio);
-        
-        _activeChannels[name] = newChannel;
-        print("✅ SDK: Channel [$name] is ready (ID: $channelId)");
-        return newChannel;
-      }
-    } catch (e) {
-      print("❌ SDK Error: Could not initialize channel via HTTP: $e");
-    }
-    return null;
+      _channel = IOWebSocketChannel.connect(Uri.parse(finalUrl), headers: {'Sec-WebSocket-Extensions': ''});
+      _status = RealtimeStatus.connected;
+      _statusController.add(_status);
+
+      _channel!.stream.listen(
+        (message) => _onMessageReceived(message),
+        onDone: () => _handleDisconnect(),
+        onError: (err) => _handleDisconnect(),
+      );
+    } catch (e) { _handleDisconnect(); }
   }
 
-  // Fallback methods si uusan SDK-gaagu ugu crash-gareyn meelaha WS looga baahnaa
-  void connect() => print("ℹ️ SDK: Using HTTP Realtime mode (No WS needed).");
-  void disconnect() => _activeChannels.forEach((k, v) => v.unsubscribe());
-  bool get isConnected => true; 
-  Stream<bool> get onStatusChange => Stream.value(true);
+  // 📥 ON MESSAGE
+  void _onMessageReceived(dynamic rawMessage) {
+    try {
+      _messageController.add(rawMessage); // U sii gudbi Notification Module
+      final data = json.decode(rawMessage);
+      final String? channelName = data['channel'];
+
+      // 🚀 WAC HANDLE INTERNAL MESSAGE (FIXED ✅)
+      if (channelName != null && _activeChannels.containsKey(channelName)) {
+        _activeChannels[channelName]!.handleInternalMessage(data);
+      }
+    } catch (e) { print("⚠️ SDK Realtime Error: $e"); }
+  }
+
+  void onMessageReceived(Function(dynamic) callback) {
+    _messageController.stream.listen(callback);
+  }
+
+  Future<SuperAIBRealtimeChannel?> channel(String name) async {
+    if (_activeChannels.containsKey(name)) return _activeChannels[name];
+    try {
+      final res = await _dio.post('projects/$_projectRef/realtime/channels', data: {'name': name});
+      final String cid = res.data['data']['id'];
+      final newChannel = SuperAIBRealtimeChannel(name, cid, this, _dio);
+      _activeChannels[name] = newChannel;
+      return newChannel;
+    } catch (e) { return null; }
+  }
+
+  void _handleDisconnect() {
+    _status = RealtimeStatus.disconnected;
+    _statusController.add(_status);
+  }
+
+  void disconnect() => _channel?.sink.close();
+  bool get isConnected => _status == RealtimeStatus.connected;
+  Stream<RealtimeStatus> get onStatusChange => _statusController.stream;
 }
