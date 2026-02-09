@@ -41,6 +41,7 @@ class SuperAIBNotifications {
 
   // 🚀 3. ON NOTIFICATION RECEIVED (THE GLOBAL LISTENER ✅)
   // Kani waa mishiinka ugu Professional-ka ah. Wuxuu dhageysanayaa WebSocket Stream-ka guud.
+ // 🚀 LISTEN FOR LIVE NOTIFICATIONS (THE GLOBAL LISTENER)
   void onNotificationReceived(Function(Map<String, dynamic>) callback) {
     print("📡 SDK: Global Notification Listener is now ACTIVE.");
 
@@ -49,19 +50,21 @@ class SuperAIBNotifications {
       _realtime.connect(); 
     }
 
-    // B. Mishiinka SHAANDHEEYNTA (The Global Filter):
-    // Waxaan dhageysanaynaa dhacdo kasta oo WebSocket-ka dhex marta.
+    // B. Dhageyso dhacdo kasta oo ka timaada WebSocket-ka guud
     _realtime.onMessageReceived((rawMessage) {
       try {
-        final data = json.decode(rawMessage);
+        // 🛠️ MUHIIM: WebSocket fariintiisu waa String, markaa marka hore decode dheh
+        final Map<String, dynamic> data = json.decode(rawMessage.toString());
         
-        // Haddii fariintu tahay 'PUSH_NOTIFICATION', u sii App-ka
+        // C. Haddii fariintu tahay PUSH_NOTIFICATION, u sii qofka
         if (data['event_type'] == "PUSH_NOTIFICATION") {
           print("🎯 SDK: Global Notification Caught from Stream!");
+          
+          // Payload-ka u dhiib App-ka
           callback(Map<String, dynamic>.from(data['payload']));
         }
       } catch (e) {
-        // Iska dhaaf wixii aan JSON aheyn
+        // Iska dhaaf fariimaha aan ahayn Notifications-ka (sida Chat-ka)
       }
     });
   }
