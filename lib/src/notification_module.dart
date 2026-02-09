@@ -88,6 +88,16 @@ class SuperAIBNotifications {
     });
   }
 
+// 🚀 GET REGISTRATION STATUS
+  Future<Map<String, dynamic>> getRegistrationStatus(String userId) async {
+    try {
+      final res = await _dio.get('/projects/$_projectRef/notifications/status/$userId');
+      return res.data['data'];
+    } catch (e) {
+      return {'enabled': false};
+    }
+  }
+  
   // 🚀 4. FETCH HISTORY
   Future<List<dynamic>> getHistory() async {
     try {
@@ -97,6 +107,7 @@ class SuperAIBNotifications {
       return [];
     }
   }
+
 
   void stopListening() {
     _pollingTimer?.cancel();
