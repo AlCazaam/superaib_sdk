@@ -59,31 +59,37 @@ class SuperAIBNotifications {
 
   // 🚀 3. LISTEN FOR NOTIFICATIONS (HTTP POLLING VERSION ✅)
   // Kani waa mishiinka adiga kugu haboon sxb (Passive & Stable)
-void onNotificationReceived(Function(Map<String, dynamic>) callback) {
-    print("📡 SDK: Notification listener is now ACTIVE.");
-
+// 🚀 3. LISTEN FOR NOTIFICATIONS (POLLING WITH STATUS CHECK ✅)
+  void onNotificationReceived(Function(Map<String, dynamic>) callback) {
+    print("📡 SDK: Global HTTP Notification Listener is now ACTIVE.");
+    
     _pollingTimer?.cancel();
 
     _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
-      // 🚀 Hubi xogta ugu dambaysay
-      final history = await getHistory();
-      if (history.isNotEmpty) {
-        final latest = history.first;
-        final String currentId = latest['id'].toString();
+      try {
+        final history = await getHistory();
+        if (history.isNotEmpty) {
+          final latest = history.first; // Fariinta ugu dambaysa
+          final String currentId = latest['id'].toString();
+          final String status = latest['status'].toString(); // 👈 Hel status-ka
 
-        // 🛠️ XALKA: Eeg haddii fariinta ugu dambeysa ay 'true' u tahay pgAdmin
-        // (Ikhtiyaari ah haddii aad rabto inaad Server-ka ku kalsoonaato)
-        
-        if (_lastNotificationId == null) {
-          _lastNotificationId = currentId;
-        } else if (_lastNotificationId != currentId) {
-          _lastNotificationId = currentId;
-          
-          // Halkan waxaan u dhiibaynaa App-ka fariinta, 
-          // Provider-ka ayaana go'aan ka gaaraya inuu muujiyo.
-          callback(Map<String, dynamic>.from(latest));
+          // 🛠️ XALKA MUCJISADA AH:
+          // KALIYA muuji haddii status-ku yahay 'sent'. 
+          // Haddii uu yahay 'pending', iska dhaaf ilaa waqtigeeda laga gaaro!
+          if (status == 'sent') {
+            if (_lastNotificationId == null) {
+              _lastNotificationId = currentId;
+            } else if (_lastNotificationId != currentId) {
+              _lastNotificationId = currentId;
+              print("🔔 SDK: New SENT notification detected!");
+              callback(Map<String, dynamic>.from(latest));
+            }
+          } else {
+            // Fariintu waa pending, iska illow hadda
+            print("⏳ SDK: Waiting for scheduled notification [ID: $currentId] to trigger...");
+          }
         }
-      }
+      } catch (e) { }
     });
   }
 // 🚀 GET REGISTRATION STATUS
