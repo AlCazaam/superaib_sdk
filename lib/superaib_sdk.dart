@@ -51,7 +51,7 @@ class SuperAIB {
     storage = SuperAIBStorage(_client, projectRef);
     
     // 🚀 INITIALIZE NOTIFICATIONS: Waxay u baahantahay Realtime Broadcaster-ka
-    notifications = SuperAIBNotifications(_client, projectRef, realtime);
+    notifications = SuperAIBNotifications(_client, projectRef,);
   }
 
   static SuperAIB initialize({

@@ -1,17 +1,18 @@
+import 'dart:async';
 import 'dart:io';
-import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import 'realtime_module.dart';
 
 class SuperAIBNotifications {
   final Dio _dio;
   final String _projectRef;
-  final SuperAIBRealtime _realtime;
 
-  SuperAIBNotifications(this._dio, this._projectRef, this._realtime);
+  Timer? _pollingTimer;
+  String? _lastNotificationId; // 👈 Kani wuxuu ka hortagayaa in fariin la arkay soo laabato
 
-  // 🚀 1. REGISTER DEVICE: pgAdmin (device_tokens)
+  SuperAIBNotifications(this._dio, this._projectRef);
+
+  // 🚀 1. REGISTER DEVICE (pgAdmin)
   Future<void> registerDevice({required String token, required String userId, String? platform}) async {
     try {
       String detectedPlatform = platform ?? (kIsWeb ? "web" : (Platform.isAndroid ? "android" : "ios"));
@@ -20,51 +21,52 @@ class SuperAIBNotifications {
         'platform': detectedPlatform,
         'user_id': userId,
       });
-      print("✅ SDK Notifications: Device token registered.");
+      print("✅ SDK: Device Token registered.");
     } catch (e) {
-      print("❌ SDK Notifications Error: $e");
+      print("❌ SDK Error: Registration failed.");
     }
   }
 
-  // 🚀 2. SEND BROADCAST (Dashboard Trigger)
+  // 🚀 2. SEND BROADCAST
   Future<void> sendBroadcast({required String title, required String body}) async {
     try {
       await _dio.post('/projects/$_projectRef/notifications/broadcast', data: {
         'title': title,
         'body': body,
       });
-      print("🚀 SDK Notifications: Broadcast sent to all.");
+      print("✅ SDK: Broadcast sent via HTTP.");
     } catch (e) {
-      print("❌ SDK Notifications Error: Broadcast failed.");
+      print("❌ SDK Error: Broadcast failed.");
     }
   }
 
-  // 🚀 3. ON NOTIFICATION RECEIVED (THE GLOBAL LISTENER ✅)
-  // Kani waa mishiinka ugu Professional-ka ah. Wuxuu dhageysanayaa WebSocket Stream-ka guud.
- // 🚀 LISTEN FOR LIVE NOTIFICATIONS (THE GLOBAL LISTENER)
+  // 🚀 3. LISTEN FOR NOTIFICATIONS (HTTP POLLING VERSION ✅)
+  // Kani waa mishiinka adiga kugu haboon sxb (Passive & Stable)
   void onNotificationReceived(Function(Map<String, dynamic>) callback) {
-    print("📡 SDK: Global Notification Listener is now ACTIVE.");
+    print("📡 SDK: Global HTTP Notification Listener is now ACTIVE.");
+    
+    // Haddii uu hore u socday, iska xir
+    _pollingTimer?.cancel();
 
-    // A. Hubi xiriirka
-    if (!_realtime.isConnected) {
-      _realtime.connect(); 
-    }
-
-    // B. Dhageyso dhacdo kasta oo ka timaada WebSocket-ka guud
-    _realtime.onMessageReceived((rawMessage) {
+    // 2-dii ilbiriqsiba mar soo eeg pgAdmin fariimihii ugu dambeeyay
+    _pollingTimer = Timer.periodic(const Duration(seconds: 2), (timer) async {
       try {
-        // 🛠️ MUHIIM: WebSocket fariintiisu waa String, markaa marka hore decode dheh
-        final Map<String, dynamic> data = json.decode(rawMessage.toString());
-        
-        // C. Haddii fariintu tahay PUSH_NOTIFICATION, u sii qofka
-        if (data['event_type'] == "PUSH_NOTIFICATION") {
-          print("🎯 SDK: Global Notification Caught from Stream!");
-          
-          // Payload-ka u dhiib App-ka
-          callback(Map<String, dynamic>.from(data['payload']));
+        final history = await getHistory();
+        if (history.isNotEmpty) {
+          final latest = history.first; // Fariinta ugu dambaysa
+          final String currentId = latest['id'].toString();
+
+          // 🛠️ XALKA: Kaliya muuji haddii ID-gan uu yahay mid cusub!
+          if (_lastNotificationId == null) {
+            _lastNotificationId = currentId; // Marka ugu horreysa kaliya xasuuso
+          } else if (_lastNotificationId != currentId) {
+            _lastNotificationId = currentId; // Update last seen
+            print("🔔 SDK: New Notification detected via Polling!");
+            callback(Map<String, dynamic>.from(latest));
+          }
         }
       } catch (e) {
-        // Iska dhaaf fariimaha aan ahayn Notifications-ka (sida Chat-ka)
+        // Silent error to avoid terminal spam
       }
     });
   }
@@ -77,5 +79,10 @@ class SuperAIBNotifications {
     } catch (e) {
       return [];
     }
+  }
+
+  void stopListening() {
+    _pollingTimer?.cancel();
+    _pollingTimer = null;
   }
 }
