@@ -13,20 +13,37 @@ class SuperAIBNotifications {
   SuperAIBNotifications(this._dio, this._projectRef);
 
   // 🚀 1. REGISTER DEVICE (pgAdmin)
-  Future<void> registerDevice({required String token, required String userId, String? platform}) async {
+  // Wuxuu kaydiyaa Token-ka, Platform-ka, iyo haddii uu qofku Switch-ka u furan yahay (Enabled).
+  Future<void> registerDevice({
+    required String token,
+    required String userId,
+    required bool enabled, // 👈 Kani wuxuu maamulaa On/Off status-ka pgAdmin
+    String? platform,      // Optional: Haddii aan la soo dhiibin, SDK ayaa garanaya
+  }) async {
     try {
+      // 📱 1. Gari Platform-ka si otomaatig ah (Logic-ga caalamiga ah)
       String detectedPlatform = platform ?? (kIsWeb ? "web" : (Platform.isAndroid ? "android" : "ios"));
-      await _dio.post('/projects/$_projectRef/notifications/register', data: {
-        'token': token,
-        'platform': detectedPlatform,
-        'user_id': userId,
-      });
-      print("✅ SDK: Device Token registered.");
+
+      print("📱 SDK: Syncing device token with pgAdmin (Enabled: $enabled)...");
+
+      // 📡 2. U dir Backend-ka
+      final response = await _dio.post(
+        '/projects/$_projectRef/notifications/register',
+        data: {
+          'token': token,
+          'platform': detectedPlatform,
+          'user_id': userId,
+          'enabled': enabled, // 👈 U gudbi status-ka dhabta ah
+        },
+      );
+
+      if (response.statusCode == 200) {
+        print("✅ SDK: Device successfully registered/updated in pgAdmin ($detectedPlatform)");
+      }
     } catch (e) {
-      print("❌ SDK Error: Registration failed.");
+      print("❌ SDK Error: Device registration failed: $e");
     }
   }
-
   // 🚀 2. SEND BROADCAST
   Future<void> sendBroadcast({required String title, required String body}) async {
     try {
